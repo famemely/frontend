@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import TwoFactorScreen from './auth/TwoFactorScreen';
+import MFAManagementScreen from './auth/MFAManagementScreen';
 
 export default function DashboardScreen() {
   const { user, logout } = useAuth();
@@ -21,6 +21,8 @@ export default function DashboardScreen() {
       ]
     );
   };
+
+  // Removed handleTestMFA (test code cleanup)
 
   return (
     <View style={styles.container}>
@@ -45,7 +47,7 @@ export default function DashboardScreen() {
             <Text style={styles.detail}>Age: {user.age}</Text>
           )}
           <Text style={styles.detail}>
-            Account Type: {user?.isUnder13 ? 'Kids Account' : 'Adult Account'}
+            Account Type: {user?.roles && user.roles.length > 0 ? user.roles.join(', ') : 'Standard'}
           </Text>
         </View>
       </View>
@@ -65,6 +67,8 @@ export default function DashboardScreen() {
             Setup MFA Security
           </Text>
         </TouchableOpacity>
+
+        {/* Removed Test MFA Status button */}
 
         <TouchableOpacity
           style={[styles.button, styles.logoutButton]}
@@ -91,9 +95,8 @@ export default function DashboardScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <TwoFactorScreen 
-          onComplete={() => setShow2FAModal(false)} 
-          onCancel={() => setShow2FAModal(false)}
+        <MFAManagementScreen 
+          onClose={() => setShow2FAModal(false)}
         />
       </Modal>
     </View>

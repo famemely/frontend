@@ -1,4 +1,4 @@
-import { Session } from '@supabase/supabase-js';
+import { Session } from "@supabase/supabase-js";
 
 /**
  * User interface with RBAC fields
@@ -8,8 +8,8 @@ export interface User {
   email?: string;
   username?: string;
   fullName: string;
-  isUnder13: boolean;
   age?: number;
+  dateOfBirth?: string; // ISO date string e.g. 1990-01-31
   phone?: string;
   roles?: string[];
   permissions?: string[];
@@ -34,6 +34,7 @@ export interface EmailSignupData {
   password: string;
   fullName: string;
   phoneNumber?: string;
+  dateOfBirth?: string; // ISO date string (YYYY-MM-DD)
 }
 
 /**
@@ -44,16 +45,7 @@ export interface EmailLoginData {
   password: string;
 }
 
-/**
- * Child account (under 13) signup data
- */
-export interface ChildAccountData {
-  username: string;
-  fullName: string;
-  age: number;
-  password: string;
-  parentEmail: string;
-}
+// Child accounts removed
 
 /**
  * Google OAuth data

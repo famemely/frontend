@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentUser);
       }
     } catch (error) {
-      console.error('Auth initialization error:', error);
+      // Auth initialization error recorded internally by service
     } finally {
       setIsLoading(false);
     }
@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authService.logout();
       setUser(null);
     } catch (error) {
-      console.error('Logout error:', error);
+      // Logout error (suppressed)
     }
   };
 
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentUser);
       }
     } catch (error) {
-      console.error('Refresh user error:', error);
+      // Refresh user error (suppressed)
       // If refresh fails, logout the user
       await logout();
     }

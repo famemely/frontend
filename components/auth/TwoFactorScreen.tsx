@@ -33,7 +33,7 @@ export default function TwoFactorScreen({ onComplete, onCancel }: TwoFactorScree
       setQrCode(response.qr_code)
       setFactorId(response.factorId)
     } catch (error) {
-      console.error('MFA setup error:', error)
+      // MFA setup error (suppressed)
       Alert.alert('Error', 'Failed to setup MFA')
       onCancel()
     } finally {
@@ -52,7 +52,7 @@ export default function TwoFactorScreen({ onComplete, onCancel }: TwoFactorScree
       await authService.verifyMFA(factorId, token)
       setStep('complete')
     } catch (error) {
-      console.error('MFA verification error:', error)
+      // MFA verification error (suppressed)
       Alert.alert('Error', 'Invalid token. Please try again.')
     } finally {
       setLoading(false)
@@ -88,6 +88,7 @@ export default function TwoFactorScreen({ onComplete, onCancel }: TwoFactorScree
             size={200}
             color={colors.text}
             backgroundColor={colors.background}
+            ecl="M"
           />
         </View>
       ) : (

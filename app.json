@@ -47,7 +47,9 @@
           "androidClientId": "536718363257-7a0640gruv6rm9p639s6ton4v7c591uk.apps.googleusercontent.com",
           "iosUrlScheme": "com.googleusercontent.apps.536718363257-7a0640gruv6rm9p639s6ton4v7c591uk"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -60,6 +62,13 @@
       "eas": {
         "projectId": "bfed8786-ab81-411f-b0e5-7b9e5e10116f"
       }
+    },
+    "updates": {
+      "enabled": false,
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

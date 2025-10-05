@@ -3,14 +3,23 @@ import { supabase } from './auth.service';
 
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
-type GoogleSignInModule = typeof import('@react-native-google-signin/google-signin');
+// We avoid dynamic import during EAS eager bundling; use lazy require inside a try/catch.
+// Types are declared manually to prevent TS complaining without importing the module at top level.
+type GoogleSignInModule = {
+  GoogleSignin: {
+    configure: (options: any) => void;
+    hasPlayServices: (opts?: any) => Promise<boolean>;
+    signIn: () => Promise<any>;
+    signOut: () => Promise<void>;
+  };
+};
 type GoogleSignInInstance = GoogleSignInModule['GoogleSignin'];
 
 type LoadOptions = {
   requireAvailability?: boolean;
 };
 
-let googleSigninPromise: Promise<GoogleSignInInstance> | null = null;
+let cachedGoogleSignin: GoogleSignInInstance | null = null;
 
 function isExpoGo(): boolean {
   return Constants.appOwnership === 'expo';
@@ -24,13 +33,17 @@ async function loadGoogleSignInModule({ requireAvailability = true }: LoadOption
     throw new Error('Google Sign-In native module unavailable.');
   }
 
-  if (!googleSigninPromise) {
-    googleSigninPromise = import('@react-native-google-signin/google-signin').then(
-      (module) => module.GoogleSignin
-    );
+  if (!cachedGoogleSignin) {
+    try {
+      // Use require to avoid creating a separate async chunk that EAS eager bundling tries to pre-resolve.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const mod: GoogleSignInModule = require('@react-native-google-signin/google-signin');
+      cachedGoogleSignin = mod.GoogleSignin;
+    } catch (e) {
+      throw new Error('Failed to load Google Sign-In native module. Make sure the development build includes the plugin.');
+    }
   }
-
-  return googleSigninPromise;
+  return cachedGoogleSignin;
 }
 
 export async function configureGoogleSignIn() {
@@ -42,9 +55,7 @@ export async function configureGoogleSignIn() {
       forceCodeForRefreshToken: false,
     });
   } catch (error) {
-    if (__DEV__) {
-      console.warn('[GoogleSignIn] Native module unavailable, skipping configuration.', error);
-    }
+    // Native Google sign-in not available; skip configuration silently in production
   }
 }
 
@@ -76,8 +87,6 @@ export async function signOutGoogleNative() {
     const GoogleSignin = await loadGoogleSignInModule({ requireAvailability: false });
     await GoogleSignin.signOut();
   } catch (error) {
-    if (__DEV__) {
-      console.warn('[GoogleSignIn] Sign-out skipped.', error);
-    }
+    // Sign-out skipped if native module missing; no-op in production
   }
 }
