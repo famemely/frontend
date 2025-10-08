@@ -1,36 +1,31 @@
+import { AUTH_CONFIG } from '@/constants/auth.config';
+import { useTheme } from '@/contexts/ThemeContext';
+import { authService } from '@/services/auth.service';
+import { configureGoogleSignIn, signInWithGoogleNative } from '@/services/google-native.service';
+import { EmailLoginData, EmailSignupData } from '@/types/auth.types';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
-  Pressable,
-  ActivityIndicator,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
+  View,
 } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import { signInWithGoogleNative, configureGoogleSignIn } from '@/services/google-native.service';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { lightTheme, darkTheme } from '@/constants/theme';
-import { authService } from '@/services/auth.service';
-import { EmailLoginData, EmailSignupData } from '@/types/auth.types';
-import { AUTH_CONFIG } from '@/constants/auth.config';
-
-// This is required for OAuth to work properly in Expo
-WebBrowser.maybeCompleteAuthSession();
 
 interface AuthScreenProps {
   onAuthSuccess: () => void;
 }
 
 export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useTheme();
   
   const [isLogin, setIsLogin] = useState(true);
   // children/under-13 flows removed — always use standard signup with date of birth
@@ -42,21 +37,84 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [username, setUsername] = useState('');
   const [age, setAge] = useState(''); // kept for compatibility but no separate kids flow
-  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(undefined);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Validation errors
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [fullNameError, setFullNameError] = useState('');
+  const [dateOfBirthError, setDateOfBirthError] = useState('');
+
+  // Focus states for inputs
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [fullNameFocused, setFullNameFocused] = useState(false);
+  const [mfaFocused, setMfaFocused] = useState(false);
 
   const styles = createStyles(theme);
 
   useEffect(() => {
-    configureGoogleSignIn();
+    // Configure Google Sign-In when component mounts
+    const setupGoogleSignIn = async () => {
+      try {
+        await configureGoogleSignIn();
+      } catch (error) {
+        console.log('Failed to configure Google Sign-In:', error);
+        // Don't crash the app if configuration fails
+      }
+    };
+    
+    setupGoogleSignIn();
   }, []);
 
+  const validateFields = () => {
+    let isValid = true;
+    
+    // Clear previous errors
+    setEmailError('');
+    setPasswordError('');
+    setFullNameError('');
+    setDateOfBirthError('');
+
+    // Email validation
+    if (!email.trim()) {
+      setEmailError('Email is required');
+      isValid = false;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError('Please enter a valid email address');
+      isValid = false;
+    }
+
+    // Password validation
+    if (!password.trim()) {
+      setPasswordError('Password is required');
+      isValid = false;
+    } else if (password.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
+      isValid = false;
+    }
+
+    // Signup-specific validation
+    if (!isLogin) {
+      if (!fullName.trim()) {
+        setFullNameError('Full name is required');
+        isValid = false;
+      }
+      
+      if (!dateOfBirth) {
+        setDateOfBirthError('Date of birth is required');
+        isValid = false;
+      }
+    }
+
+    return isValid;
+  };
+
   const handleEmailAuth = async () => {
-    if (!email.trim() || !password.trim() || (!isLogin && !fullName.trim())) {
-      Alert.alert('Error', 'Please fill in all required fields');
-      setLoading(false);
+    if (!validateFields()) {
       return;
     }
 
@@ -74,8 +132,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           email,
           password,
           fullName,
-          phoneNumber: phoneNumber || undefined,
-          dateOfBirth: dateOfBirth || undefined,
+          dateOfBirth: dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : undefined,
         };
         await authService.signupWithEmail(signupData);
         setLoading(false);
@@ -122,57 +179,42 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    let nativeError: unknown;
     try {
-      if (Platform.OS === 'android') {
-        try {
-          const session = await signInWithGoogleNative();
-          if (session) {
-            const authResult = await authService.handleOAuthCallback();
-            if (authResult) {
-              setLoading(false);
-              Alert.alert('Success', AUTH_CONFIG.SUCCESS.GOOGLE_NATIVE_SIGNIN);
-              onAuthSuccess();
-              return;
-            }
-          }
-        } catch (error) {
-          nativeError = error;
-          // Native Google Sign-In failed, falling back to browser flow
-        }
-      }
-
-      // Fallback to browser OAuth (runs when native is unavailable or fails)
-      const { url } = await authService.loginWithGoogleOAuth();
-      const redirectUri = AUTH_CONFIG.OAUTH.REDIRECT_URI;
-      const result = await WebBrowser.openAuthSessionAsync(
-        url,
-        redirectUri
-      );
-      if (result.type === 'success') {
+      // Use native Google Sign-In with Supabase
+      const session = await signInWithGoogleNative();
+      
+      if (session) {
+        // Session is already established, get the auth callback
         const authResult = await authService.handleOAuthCallback();
         if (authResult) {
           setLoading(false);
-          Alert.alert('Success', AUTH_CONFIG.SUCCESS.GOOGLE_BROWSER_SIGNIN);
+          Alert.alert('Success', 'Successfully signed in with Google');
           onAuthSuccess();
-        } else {
-          setLoading(false);
-          Alert.alert('Error', 'Failed to complete Google sign-in');
+          return;
         }
-      } else if (result.type === 'cancel') {
-        setLoading(false);
-        const message = nativeError
-          ? 'Native sign-in failed and browser sign-in was cancelled.'
-          : 'Google sign-in was cancelled';
-        Alert.alert('Cancelled', message);
       }
-    } catch (error) {
+      
       setLoading(false);
-  // Google login error (suppressed)
-      Alert.alert(
-        'Google Sign-In Error',
-        error instanceof Error ? error.message : 'Failed to sign in with Google'
-      );
+      Alert.alert('Error', 'Failed to complete Google sign-in');
+    } catch (error: any) {
+      setLoading(false);
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to sign in with Google';
+      
+      if (error.message?.includes('SIGN_IN_CANCELLED')) {
+        errorMessage = 'Sign-in was cancelled';
+      } else if (error.message?.includes('IN_PROGRESS')) {
+        errorMessage = 'Sign-in already in progress';
+      } else if (error.message?.includes('PLAY_SERVICES_NOT_AVAILABLE')) {
+        errorMessage = 'Google Play Services not available';
+      } else if (error.message?.includes('No ID token')) {
+        errorMessage = 'Failed to get authentication token from Google';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Google Sign-In Error', errorMessage);
     }
   };
 
@@ -180,10 +222,16 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     setEmail('');
     setPassword('');
     setFullName('');
-    setPhoneNumber('');
     setUsername('');
     setAge('');
-    setDateOfBirth('');
+    setDateOfBirth(undefined);
+    setShowDatePicker(false);
+    
+    // Clear errors
+    setEmailError('');
+    setPasswordError('');
+    setFullNameError('');
+    setDateOfBirthError('');
   };
 
   const switchMode = (newIsLogin: boolean) => {
@@ -198,9 +246,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>
-            {isLogin ? 'Welcome Back' : 'Create Account'}
-          </Text>
+          <Text style={styles.logo}>Famemely</Text>
           <Text style={styles.subtitle}>
             {isLogin ? 'Sign in to your family account' : 'Join your family network'}
           </Text>
@@ -209,48 +255,114 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         <View style={styles.form}>
           {/* Standard form (adults) */}
           <>
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor={theme.colors.placeholder}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor={theme.colors.placeholder}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
+              <View style={styles.inputWrapper}>
+                {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+                <TextInput
+                  style={[
+                    styles.input,
+                    emailFocused && styles.inputFocused,
+                    emailError && styles.inputError,
+                  ]}
+                  placeholder="Email"
+                  placeholderTextColor={theme.colors.placeholder}
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (emailError) setEmailError('');
+                  }}
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputWrapper}>
+                {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+                <TextInput
+                  style={[
+                    styles.input,
+                    passwordFocused && styles.inputFocused,
+                    passwordError && styles.inputError,
+                  ]}
+                  placeholder="Password"
+                  placeholderTextColor={theme.colors.placeholder}
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (passwordError) setPasswordError('');
+                  }}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
+                  secureTextEntry
+                />
+              </View>
               {!isLogin && (
                 <>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Full Name"
-                    placeholderTextColor={theme.colors.placeholder}
-                    value={fullName}
-                    onChangeText={setFullName}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Date of Birth (YYYY-MM-DD)"
-                    placeholderTextColor={theme.colors.placeholder}
-                    value={dateOfBirth}
-                    onChangeText={setDateOfBirth}
-                    keyboardType="numeric"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Phone Number (optional)"
-                    placeholderTextColor={theme.colors.placeholder}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    keyboardType="phone-pad"
-                  />
+                  <View style={styles.inputWrapper}>
+                    {fullNameError ? <Text style={styles.errorText}>{fullNameError}</Text> : null}
+                    <TextInput
+                      style={[
+                        styles.input,
+                        fullNameFocused && styles.inputFocused,
+                        fullNameError && styles.inputError,
+                      ]}
+                      placeholder="Full Name"
+                      placeholderTextColor={theme.colors.placeholder}
+                      value={fullName}
+                      onChangeText={(text) => {
+                        setFullName(text);
+                        if (fullNameError) setFullNameError('');
+                      }}
+                      onFocus={() => setFullNameFocused(true)}
+                      onBlur={() => setFullNameFocused(false)}
+                    />
+                  </View>
+                  
+                  <View style={styles.inputWrapper}>
+                    {dateOfBirthError ? <Text style={styles.errorText}>{dateOfBirthError}</Text> : null}
+                    <TouchableOpacity
+                      style={[
+                        styles.input, 
+                        styles.datePickerButton,
+                        dateOfBirthError && styles.inputError,
+                      ]}
+                      onPress={() => {
+                        setShowDatePicker(true);
+                        if (dateOfBirthError) setDateOfBirthError('');
+                      }}
+                    >
+                      <Text style={[
+                        styles.datePickerText,
+                        !dateOfBirth && styles.datePickerPlaceholder
+                      ]}>
+                        {dateOfBirth 
+                          ? dateOfBirth.toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            })
+                          : 'Date of Birth'
+                        }
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={dateOfBirth || new Date()}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={(event, selectedDate) => {
+                        setShowDatePicker(Platform.OS === 'ios');
+                        if (selectedDate) {
+                          setDateOfBirth(selectedDate);
+                        }
+                      }}
+                      maximumDate={new Date()}
+                      minimumDate={new Date(1900, 0, 1)}
+                    />
+                  )}
                 </>
               )}
               
@@ -300,7 +412,17 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         <View style={styles.footer}>
           <TouchableOpacity onPress={() => switchMode(!isLogin)}>
             <Text style={styles.linkText}>
-              {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
+              {isLogin ? (
+                <>
+                  <Text style={styles.linkTextNormal}>New to Famemely? </Text>
+                  <Text style={styles.linkTextEmphasis}>Sign Up</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.linkTextNormal}>Already have an account? </Text>
+                  <Text style={styles.linkTextEmphasis}>Sign In</Text>
+                </>
+              )}
             </Text>
           </TouchableOpacity>
         </View>
@@ -320,11 +442,17 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             <Text style={[styles.mfaModalTitle, { color: theme.colors.text }]}>Two-Factor Verification</Text>
             <Text style={[styles.mfaModalSubtitle, { color: theme.colors.textSecondary }]}>Enter the 6-digit code from your authenticator app to finish signing in.</Text>
             <TextInput
-              style={[styles.input, styles.mfaInput]}
+              style={[
+                styles.input, 
+                styles.mfaInput,
+                mfaFocused && styles.inputFocused,
+              ]}
               placeholder="000000"
               placeholderTextColor={theme.colors.placeholder}
               value={mfaCode}
               onChangeText={setMfaCode}
+              onFocus={() => setMfaFocused(true)}
+              onBlur={() => setMfaFocused(false)}
               keyboardType="numeric"
               maxLength={6}
               autoFocus
@@ -368,35 +496,70 @@ const createStyles = (theme: any) =>
     header: {
       alignItems: 'center',
       marginBottom: theme.spacing.xl,
+      minHeight: 140,
+      justifyContent: 'center',
     },
-    title: {
-      fontSize: 32,
-      fontWeight: 'bold',
+    logo: {
+      fontSize: 64,
+      fontFamily: Platform.select({
+        ios: 'Zapfino',
+        android: 'cursive',
+      }),
       color: theme.colors.text,
-      marginBottom: theme.spacing.sm,
+      marginBottom: theme.spacing.xl,
+      letterSpacing: 3,
+      textAlign: 'center',
+      width: '100%',
     },
     subtitle: {
       fontSize: 16,
       color: theme.colors.textSecondary,
       textAlign: 'center',
+      opacity: 0.7,
+      fontWeight: '400',
+      minHeight: 22,
     },
     form: {
       marginBottom: theme.spacing.xl,
     },
+    inputWrapper: {
+      marginBottom: theme.spacing.md,
+    },
     input: {
-      backgroundColor: theme.colors.surface,
-      borderColor: theme.colors.border,
+      backgroundColor: '#FFFFFF',
+      borderColor: '#053326',
       borderWidth: 1,
       borderRadius: theme.borderRadius.md,
       padding: theme.spacing.md,
       fontSize: 16,
       color: theme.colors.text,
-      marginBottom: theme.spacing.md,
+      marginBottom: 0,
+      fontWeight: '400',
+      opacity: 0.7,
+    },
+    inputFocused: {
+      opacity: 1,
+      borderWidth: 1.5,
+    },
+    inputError: {
+      borderColor: theme.colors.error,
+      backgroundColor: '#FEE2E2',
+      opacity: 1,
+      borderWidth: 1.5,
+    },
+    errorText: {
+      color: theme.colors.error,
+      fontSize: 12,
+      marginBottom: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.xs,
+      opacity: 0.9,
+      fontWeight: '500',
+      textAlign: 'right',
     },
     button: {
-      backgroundColor: theme.colors.primary,
+      backgroundColor: '#053326',
       borderRadius: theme.borderRadius.md,
-      padding: theme.spacing.md,
+      padding: theme.spacing.md + 2,
       alignItems: 'center',
       marginBottom: theme.spacing.md,
     },
@@ -406,27 +569,27 @@ const createStyles = (theme: any) =>
     buttonText: {
       color: '#FFFFFF',
       fontSize: 16,
-      fontWeight: '600',
+      fontWeight: '500',
+      letterSpacing: 0.3,
     },
     secondaryButton: {
       backgroundColor: 'transparent',
-      borderColor: theme.colors.border,
+      borderColor: '#053326',
       borderWidth: 1,
     },
     secondaryButtonText: {
       color: theme.colors.text,
     },
     googleButton: {
-      backgroundColor: theme.colors.surface,
-      borderColor: theme.colors.border,
+      backgroundColor: '#FFFFFF',
+      borderColor: '#053326',
       borderWidth: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: theme.spacing.md,
+      paddingVertical: theme.spacing.md + 2,
       paddingHorizontal: theme.spacing.lg,
-      borderRadius: theme.borderRadius.lg,
-      elevation: 2,
+      borderRadius: theme.borderRadius.md,
     },
     buttonPressed: {
       opacity: 0.9,
@@ -436,21 +599,22 @@ const createStyles = (theme: any) =>
       marginRight: theme.spacing.sm,
     },
     googleIconContainer: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
       backgroundColor: '#FFFFFF',
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: theme.spacing.sm,
-      elevation: 3,
     },
     googleG: {
       color: '#4285F4',
-      fontWeight: '700',
+      fontWeight: '500',
+      fontSize: 16,
     },
     googleButtonText: {
-      color: theme.colors.text,
+      color: '#053326',
+      fontWeight: '400',
     },
     divider: {
       flexDirection: 'row',
@@ -466,21 +630,42 @@ const createStyles = (theme: any) =>
       marginHorizontal: theme.spacing.md,
       color: theme.colors.textSecondary,
       fontSize: 14,
+      opacity: 0.6,
+      fontWeight: '400',
     },
     footer: {
       alignItems: 'center',
     },
     linkText: {
-      color: theme.colors.primary,
       fontSize: 16,
-      fontWeight: '500',
+      fontWeight: '400',
+    },
+    linkTextNormal: {
+      color: '#000000',
+      opacity: 0.7,
+    },
+    linkTextEmphasis: {
+      color: '#053326',
+      opacity: 1,
+    },
+    datePickerButton: {
+      justifyContent: 'center',
+    },
+    datePickerText: {
+      fontSize: 16,
+      color: theme.colors.text,
+      fontWeight: '400',
+    },
+    datePickerPlaceholder: {
+      color: theme.colors.placeholder,
+      opacity: 0.7,
     },
     marginTop: {
       marginTop: theme.spacing.md,
     },
     mfaInput: {
       fontSize: 32,
-      fontWeight: '600',
+      fontWeight: '400',
       textAlign: 'center',
       letterSpacing: 8,
     },
@@ -498,7 +683,7 @@ const createStyles = (theme: any) =>
     },
     mfaModalTitle: {
       fontSize: 24,
-      fontWeight: '700',
+      fontWeight: '500',
       marginBottom: theme.spacing.sm,
       textAlign: 'center',
     },
@@ -506,5 +691,7 @@ const createStyles = (theme: any) =>
       fontSize: 14,
       marginBottom: theme.spacing.lg,
       textAlign: 'center',
+      opacity: 0.7,
+      fontWeight: '400',
     },
   });

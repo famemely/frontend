@@ -243,13 +243,13 @@ export default function MFAManagementScreen({ onClose }: MFAManagementScreenProp
                       width: '18%',
                       margin: '1%',
                       padding: 12,
-                      backgroundColor: colors.primary,
-                      borderRadius: 8,
+                      backgroundColor: colors.accent,
+                      borderRadius: 6,
                       alignItems: 'center',
                     }}
                     onPress={() => disableCode.length < 6 && setDisableCode(disableCode + d)}
                   >
-                    <Text style={{ color: '#fff', fontWeight: '600' }}>{d}</Text>
+                    <Text style={{ color: '#fff', fontWeight: '400' }}>{d}</Text>
                   </TouchableOpacity>
                 ))}
                 <TouchableOpacity
@@ -257,40 +257,44 @@ export default function MFAManagementScreen({ onClose }: MFAManagementScreenProp
                     width: '38%',
                     margin: '1%',
                     padding: 12,
-                    backgroundColor: '#EF4444',
-                    borderRadius: 8,
+                    backgroundColor: 'transparent',
+                    borderWidth: 1,
+                    borderColor: '#EF4444',
+                    borderRadius: 6,
                     alignItems: 'center',
                   }}
                   onPress={() => setDisableCode(disableCode.slice(0, -1))}
                 >
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>Del</Text>
+                  <Text style={{ color: '#EF4444', fontWeight: '400' }}>Del</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{
                     width: '58%',
                     margin: '1%',
                     padding: 12,
-                    backgroundColor: colors.secondary,
-                    borderRadius: 8,
+                    backgroundColor: 'transparent',
+                    borderWidth: 1,
+                    borderColor: colors.textSecondary,
+                    borderRadius: 6,
                     alignItems: 'center',
                   }}
                   onPress={() => setDisableNeedsCode(false)}
                 >
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                  <Text style={{ color: colors.textSecondary, fontWeight: '400' }}>Cancel</Text>
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
                 style={{
                   marginTop: 12,
                   padding: 14,
-                  backgroundColor: disableCode.length === 6 ? colors.primary : colors.border,
-                  borderRadius: 8,
+                  backgroundColor: disableCode.length === 6 ? colors.accent : colors.border,
+                  borderRadius: 6,
                   alignItems: 'center',
                 }}
                 disabled={disableCode.length !== 6 || loading}
                 onPress={handleConfirmDisableWithCode}
               >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>
+                <Text style={{ color: '#fff', fontWeight: '400' }}>
                   {loading ? 'Disabling...' : 'Confirm Disable'}
                 </Text>
               </TouchableOpacity>
@@ -304,7 +308,7 @@ export default function MFAManagementScreen({ onClose }: MFAManagementScreenProp
                 onPress={handleDisableMFA}
                 disabled={loading}
               >
-                <Text style={styles.buttonText}>Disable MFA</Text>
+                <Text style={[styles.buttonText, { color: '#EF4444' }]}>Disable MFA</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -339,12 +343,15 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '400',
     marginBottom: 8,
+    letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 14,
     lineHeight: 20,
+    fontWeight: '400',
+    opacity: 0.7,
   },
   loadingContainer: {
     flex: 1,
@@ -353,9 +360,11 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
   statusCard: {
-    borderRadius: 12,
+    borderRadius: 6,
     padding: 20,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
   },
   statusHeader: {
     flexDirection: 'row',
@@ -365,23 +374,26 @@ const styles = StyleSheet.create({
   },
   statusLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    opacity: 0.7,
   },
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 4,
   },
   statusText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   statusDescription: {
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 16,
+    fontWeight: '400',
+    opacity: 0.7,
   },
   factorsList: {
     marginTop: 16,
@@ -391,32 +403,39 @@ const styles = StyleSheet.create({
   },
   factorsTitle: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
+    opacity: 0.7,
   },
   factorItem: {
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 6,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   factorName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     marginBottom: 4,
   },
   factorType: {
     fontSize: 12,
+    fontWeight: '400',
+    opacity: 0.7,
   },
   infoCard: {
-    borderRadius: 12,
+    borderRadius: 6,
     padding: 20,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
   },
   infoTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
     marginBottom: 12,
   },
   infoList: {
@@ -426,6 +445,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 4,
+    fontWeight: '400',
+    opacity: 0.7,
   },
   actions: {
     gap: 12,
@@ -433,11 +454,13 @@ const styles = StyleSheet.create({
   },
   button: {
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 6,
     alignItems: 'center',
   },
   dangerButton: {
-    backgroundColor: '#EF4444',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#EF4444',
   },
   secondaryButton: {
     backgroundColor: 'transparent',
@@ -446,6 +469,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
+    letterSpacing: 0.3,
   },
 });

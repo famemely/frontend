@@ -17,7 +17,6 @@ import {
 const SUPABASE_URL = AUTH_CONFIG.SUPABASE.URL;
 const SUPABASE_KEY = AUTH_CONFIG.SUPABASE.ANON_KEY;
 const API_BASE_URL = resolveApiBaseUrl(AUTH_CONFIG.API.BASE_URL, Platform.OS);
-const OAUTH_REDIRECT = AUTH_CONFIG.OAUTH.REDIRECT_URI;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error(AUTH_CONFIG.ERRORS.MISSING_SUPABASE_ENV);
@@ -250,7 +249,7 @@ class AuthService {
 
     this.appToken = appAuth.appToken;
     this.user = appAuth.user;
-
+    
     return {
       user: appAuth.user,
       session: authData.session,
@@ -281,24 +280,6 @@ class AuthService {
       user: appAuth.user,
       session: authData.session,
       appToken: appAuth.appToken,
-    };
-  }
-
-  async loginWithGoogleOAuth(): Promise<{ url: string; provider: string }> {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: AUTH_CONFIG.OAUTH.GOOGLE_PROVIDER as "google",
-      options: {
-        redirectTo: OAUTH_REDIRECT,
-        skipBrowserRedirect: false,
-      },
-    });
-
-    if (error) throw error;
-    if (!data.url) throw new Error(AUTH_CONFIG.ERRORS.NO_OAUTH_URL);
-
-    return {
-      url: data.url,
-      provider: data.provider,
     };
   }
 

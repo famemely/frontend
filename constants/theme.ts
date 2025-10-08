@@ -1,122 +1,130 @@
-// Theme configuration for easy dark/light mode switching
-import { Platform } from 'react-native';
+// Black Dominant Theme with Green Accents - Minimal & Clean
+import { Platform } from "react-native";
 
 export const lightTheme = {
   colors: {
-    primary: '#007AFF',
-    secondary: '#5856D6',
-    background: '#FFFFFF',
-    surface: '#F2F2F7',
-    card: '#FFFFFF',
-    text: '#000000',
-    textSecondary: '#6D6D80',
-    border: '#C6C6C8',
-    placeholder: '#8E8E93',
-    error: '#FF3B30',
-    success: '#34C759',
-    warning: '#FF9500',
-    info: '#007AFF',
-    shadow: 'rgba(0, 0, 0, 0.1)',
-    tint: '#007AFF',
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: '#007AFF',
+    primary: "#053326", // Darker Forest Green (accent only)
+    secondary: "#064E3B", // Dark Green (accent only)
+    background: "#FFFFFF", // Pure White
+    surface: "#FAFAFA", // Light Gray Surface
+    card: "#FFFFFF", // Pure White
+    text: "#000000", // Pure Black Text
+    textSecondary: "#666666", // Medium Gray
+    border: "#E5E5E5", // Light Gray Border
+    placeholder: "#999999", // Muted Gray
+    error: "#DC2626", // Elegant Red
+    success: "#059669", // Vibrant Green
+    warning: "#F59E0B", // Amber
+    info: "#0891B2", // Teal
+    shadow: "rgba(0, 0, 0, 0.04)",
+    tint: "#000000",
+    icon: "#000000", // Monochromatic
+    tabIconDefault: "#666666",
+    tabIconSelected: "#000000",
+    accent: "#053326", // Green accent for design elements
+    muted: "#F5F5F5", // Soft Background
   },
   fonts: {
     regular: Platform.select({
-      ios: 'System',
-      android: 'Roboto',
-      default: 'System',
+      ios: "SF Pro Display",
+      android: "sans-serif",
+      default: "System",
     }),
     medium: Platform.select({
-      ios: 'System',
-      android: 'Roboto-Medium',
-      default: 'System',
-    }),
-    bold: Platform.select({
-      ios: 'System',
-      android: 'Roboto-Bold',
-      default: 'System',
+      ios: "SF Pro Display",
+      android: "sans-serif",
+      default: "System",
     }),
     light: Platform.select({
-      ios: 'System',
-      android: 'Roboto-Light',
-      default: 'System',
+      ios: "SF Pro Display",
+      android: "sans-serif-light",
+      default: "System",
+    }),
+    heading: Platform.select({
+      ios: "SF Pro Display",
+      android: "sans-serif",
+      default: "System",
     }),
   },
   spacing: {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
-    xxl: 48,
+    xs: 6,
+    sm: 12,
+    md: 20,
+    lg: 28,
+    xl: 40,
+    xxl: 56,
+    xxxl: 72,
   },
   borderRadius: {
     sm: 4,
-    md: 8,
-    lg: 12,
-    xl: 16,
+    md: 6,
+    lg: 8,
+    xl: 10,
+    xxl: 12,
     full: 999,
   },
 };
 
 export const darkTheme = {
   colors: {
-    primary: '#0A84FF',
-    secondary: '#5E5CE6',
-    background: '#000000',
-    surface: '#1C1C1E',
-    card: '#2C2C2E',
-    text: '#FFFFFF',
-    textSecondary: '#8E8E93',
-    border: '#38383A',
-    placeholder: '#8E8E93',
-    error: '#FF453A',
-    success: '#30D158',
-    warning: '#FF9F0A',
-    info: '#64D2FF',
-    shadow: 'rgba(0, 0, 0, 0.3)',
-    tint: '#0A84FF',
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: '#0A84FF',
+    primary: "#053326", // Green accent for dark mode
+    secondary: "#064E3B", // Dark Green
+    background: "#000000", // Pure Black Background
+    surface: "#1A1A1A", // Dark Gray Surface
+    card: "#1A1A1A", // Dark Gray Card
+    text: "#FFFFFF", // Pure White Text
+    textSecondary: "#999999", // Medium Gray
+    border: "#333333", // Dark Border
+    placeholder: "#666666", // Muted Gray
+    error: "#F87171", // Soft Red
+    success: "#34D399", // Bright Green
+    warning: "#FBBF24", // Gold
+    info: "#22D3EE", // Cyan
+    shadow: "rgba(0, 0, 0, 0.2)",
+    tint: "#FFFFFF",
+    icon: "#FFFFFF", // Monochromatic
+    tabIconDefault: "#999999",
+    tabIconSelected: "#FFFFFF",
+    accent: "#053326", // Green accent
+    muted: "#262626", // Muted dark
   },
   fonts: {
     regular: Platform.select({
-      ios: 'System',
-      android: 'Roboto',
-      default: 'System',
+      ios: "SF Pro Display",
+      android: "sans-serif",
+      default: "System",
     }),
     medium: Platform.select({
-      ios: 'System',
-      android: 'Roboto-Medium',
-      default: 'System',
-    }),
-    bold: Platform.select({
-      ios: 'System',
-      android: 'Roboto-Bold',
-      default: 'System',
+      ios: "SF Pro Display",
+      android: "sans-serif",
+      default: "System",
     }),
     light: Platform.select({
-      ios: 'System',
-      android: 'Roboto-Light',
-      default: 'System',
+      ios: "SF Pro Display",
+      android: "sans-serif-light",
+      default: "System",
+    }),
+    heading: Platform.select({
+      ios: "SF Pro Display",
+      android: "sans-serif",
+      default: "System",
     }),
   },
   spacing: {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
-    xxl: 48,
+    xs: 6,
+    sm: 12,
+    md: 20,
+    lg: 28,
+    xl: 40,
+    xxl: 56,
+    xxxl: 72,
   },
   borderRadius: {
     sm: 4,
-    md: 8,
-    lg: 12,
-    xl: 16,
+    md: 6,
+    lg: 8,
+    xl: 10,
+    xxl: 12,
     full: 999,
   },
 };
