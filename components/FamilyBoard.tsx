@@ -288,41 +288,73 @@ const FamilyBoard: React.FC<FamilyBoardProps> = ({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f2f2f7' }}>
+    <View style={{ flex: 1, backgroundColor: '#f8f9fa' }}>
       {/* Header */}
       <View style={{ 
-        padding: 16, 
-        backgroundColor: 'white', 
-        borderBottomWidth: 1, 
-        borderBottomColor: '#c6c6c8' 
+        paddingTop: 60,
+        paddingHorizontal: 20, 
+        paddingBottom: 20,
+        backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        borderBottomLeftRadius: 25,
+        borderBottomRightRadius: 25,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
+        elevation: 8,
       }}>
-        <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 12 }}>
-          Family Board
+        <Text style={{ 
+          fontSize: 32, 
+          fontWeight: '800', 
+          color: 'white',
+          marginBottom: 16,
+          textAlign: 'center',
+          letterSpacing: 0.5
+        }}>
+          Family Board ✨
         </Text>
         
         {/* Filter Buttons */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {['all', 'text', 'todo_list', 'reminder', 'photo'].map((filter) => (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 4 }}>
+            {[
+              { key: 'all', label: 'All', emoji: '📋' },
+              { key: 'text', label: 'Messages', emoji: '💬' },
+              { key: 'todo_list', label: 'Todo Lists', emoji: '📝' },
+              { key: 'reminder', label: 'Reminders', emoji: '⏰' },
+              { key: 'photo', label: 'Photos', emoji: '📷' }
+            ].map((filter) => (
               <TouchableOpacity
-                key={filter}
-                onPress={() => setSelectedFilter(filter as PostType | 'all')}
+                key={filter.key}
+                onPress={() => setSelectedFilter(filter.key as PostType | 'all')}
                 style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  backgroundColor: selectedFilter === filter ? '#007aff' : '#e5e5ea',
-                  borderRadius: 16,
-                  minWidth: 60,
-                  alignItems: 'center'
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  backgroundColor: selectedFilter === filter.key 
+                    ? 'rgba(255, 255, 255, 0.25)' 
+                    : 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: 20,
+                  minWidth: 80,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: selectedFilter === filter.key 
+                    ? 'rgba(255, 255, 255, 0.4)' 
+                    : 'rgba(255, 255, 255, 0.2)',
+                  shadowColor: selectedFilter === filter.key ? '#fff' : 'transparent',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 4,
                 }}
               >
+                <Text style={{ fontSize: 16, marginBottom: 2 }}>{filter.emoji}</Text>
                 <Text style={{
-                  color: selectedFilter === filter ? 'white' : '#000',
-                  fontSize: 12,
-                  fontWeight: '600',
-                  textTransform: 'capitalize'
+                  color: 'white',
+                  fontSize: 11,
+                  fontWeight: selectedFilter === filter.key ? '700' : '600',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5
                 }}>
-                  {filter === 'all' ? 'All' : filter.replace('_', ' ')}
+                  {filter.label}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -331,64 +363,189 @@ const FamilyBoard: React.FC<FamilyBoardProps> = ({
       </View>
 
       {/* Posts List */}
-      <ScrollView style={{ flex: 1, padding: 16 }}>
-        {filteredPosts.map((post: BoardPost) => (
+      <ScrollView 
+        style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {filteredPosts.map((post: BoardPost, index: number) => (
           <View
             key={post.id}
             style={{
               backgroundColor: 'white',
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 12,
-              borderLeftWidth: 4,
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 16,
+              borderLeftWidth: 5,
               borderLeftColor: getPostTypeColor(post.post_type),
               shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 2,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 12,
+              elevation: 4,
+              transform: [{ scale: 1 }], // For potential animation
             }}
           >
             {/* Post Header */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <View style={{ 
+              flexDirection: 'row', 
+              justifyContent: 'space-between', 
+              alignItems: 'flex-start', 
+              marginBottom: 12 
+            }}>
               <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
-                    {post.author_name}
-                  </Text>
-                  <Text style={{ marginLeft: 8, fontSize: 12, color: '#8e8e93' }}>
-                    {formatRelativeTime(post.created_at)}
-                  </Text>
-                  {post.is_pinned && (
-                    <Text style={{ marginLeft: 8, fontSize: 12 }}>📌</Text>
-                  )}
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 14, marginRight: 4 }}>
-                    {getPostTypeIcon(post.post_type)}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: getPostTypeColor(post.post_type), textTransform: 'capitalize' }}>
-                    {post.post_type.replace('_', ' ')}
-                  </Text>
-                  {post.moderation_status === 'pending' && (
-                    <Text style={{ marginLeft: 8, fontSize: 12, color: '#ff9500', backgroundColor: '#fff3cd', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
-                      Pending Review
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                  <View style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: getPostTypeColor(post.post_type),
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 12
+                  }}>
+                    <Text style={{ fontSize: 18 }}>{getPostTypeIcon(post.post_type)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ 
+                      fontSize: 17, 
+                      fontWeight: '700', 
+                      color: '#1a1a1a',
+                      marginBottom: 2
+                    }}>
+                      {post.author_name}
                     </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ 
+                        fontSize: 13, 
+                        color: '#8e8e93',
+                        fontWeight: '500'
+                      }}>
+                        {formatRelativeTime(post.created_at)}
+                      </Text>
+                      {post.is_pinned && (
+                        <View style={{
+                          marginLeft: 8,
+                          backgroundColor: '#ff6b35',
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 10,
+                          flexDirection: 'row',
+                          alignItems: 'center'
+                        }}>
+                          <Text style={{ fontSize: 10, marginRight: 2 }}>📌</Text>
+                          <Text style={{ 
+                            fontSize: 10, 
+                            color: 'white', 
+                            fontWeight: '600',
+                            textTransform: 'uppercase'
+                          }}>
+                            Pinned
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+                
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 52 }}>
+                  <View style={{
+                    backgroundColor: `${getPostTypeColor(post.post_type)}15`,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}>
+                    <Text style={{ 
+                      fontSize: 12, 
+                      color: getPostTypeColor(post.post_type), 
+                      fontWeight: '600',
+                      textTransform: 'capitalize'
+                    }}>
+                      {post.post_type.replace('_', ' ')}
+                    </Text>
+                  </View>
+                  
+                  {post.moderation_status === 'pending' && (
+                    <View style={{
+                      marginLeft: 8,
+                      backgroundColor: '#ffeaa7',
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 12,
+                      flexDirection: 'row',
+                      alignItems: 'center'
+                    }}>
+                      <Text style={{ fontSize: 10, marginRight: 4 }}>⏳</Text>
+                      <Text style={{ 
+                        fontSize: 11, 
+                        color: '#d63031', 
+                        fontWeight: '600',
+                        textTransform: 'uppercase'
+                      }}>
+                        Pending Review
+                      </Text>
+                    </View>
                   )}
                 </View>
               </View>
               
               {/* Action Buttons */}
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity onPress={() => handleTogglePin(post.id)}>
-                  <Text style={{ fontSize: 16 }}>{post.is_pinned ? '📌' : '📍'}</Text>
+              <View style={{ flexDirection: 'row', gap: 12, marginLeft: 12 }}>
+                <TouchableOpacity 
+                  onPress={() => handleTogglePin(post.id)}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: post.is_pinned ? '#ff6b35' : '#f1f3f4',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    shadowColor: post.is_pinned ? '#ff6b35' : '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: post.is_pinned ? 0.3 : 0.1,
+                    shadowRadius: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 16 }}>
+                    {post.is_pinned ? '📌' : '📍'}
+                  </Text>
                 </TouchableOpacity>
+                
                 {canModerate && post.moderation_status === 'pending' && (
                   <>
-                    <TouchableOpacity onPress={() => handleModeratePost(post.id, true)}>
+                    <TouchableOpacity 
+                      onPress={() => handleModeratePost(post.id, true)}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        backgroundColor: '#00b894',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: '#00b894',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 4,
+                      }}
+                    >
                       <Text style={{ fontSize: 16 }}>✅</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleModeratePost(post.id, false)}>
+                    <TouchableOpacity 
+                      onPress={() => handleModeratePost(post.id, false)}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        backgroundColor: '#e17055',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: '#e17055',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 4,
+                      }}
+                    >
                       <Text style={{ fontSize: 16 }}>❌</Text>
                     </TouchableOpacity>
                   </>
@@ -398,69 +555,164 @@ const FamilyBoard: React.FC<FamilyBoardProps> = ({
 
             {/* Post Title */}
             {post.title_encrypted && (
-              <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>
+              <Text style={{ 
+                fontSize: 20, 
+                fontWeight: '700', 
+                marginBottom: 12,
+                color: '#1a1a1a',
+                lineHeight: 26
+              }}>
                 {post.title_encrypted}
               </Text>
             )}
 
             {/* Post Content */}
-            <Text style={{ fontSize: 16, lineHeight: 22, marginBottom: 12 }}>
+            <Text style={{ 
+              fontSize: 16, 
+              lineHeight: 24, 
+              marginBottom: 16,
+              color: '#333',
+              fontWeight: '400'
+            }}>
               {post.content_encrypted}
             </Text>
 
             {/* Todo List Items */}
             {post.post_type === 'todo_list' && todoItems[post.id] && (
-              <View style={{ marginTop: 8 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 8, color: '#34c759' }}>
-                  Items ({post.completed_todos_count}/{post.todo_items_count})
-                </Text>
-                {todoItems[post.id].map((todo: TodoListItem) => (
-                  <TouchableOpacity
-                    key={todo.id}
-                    onPress={() => handleToggleTodo(post.id, todo.id)}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingVertical: 6,
-                      paddingHorizontal: 8,
-                      backgroundColor: todo.is_completed ? '#f0f9f0' : '#f8f9fa',
-                      borderRadius: 8,
-                      marginBottom: 4,
-                    }}
-                  >
-                    <Text style={{ fontSize: 16, marginRight: 8 }}>
-                      {todo.is_completed ? '✅' : '⬜'}
-                    </Text>
-                    <Text style={{
-                      flex: 1,
-                      fontSize: 14,
-                      textDecorationLine: todo.is_completed ? 'line-through' : 'none',
-                      color: todo.is_completed ? '#8e8e93' : '#000'
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ 
+                  flexDirection: 'row', 
+                  alignItems: 'center', 
+                  marginBottom: 12 
+                }}>
+                  <Text style={{ 
+                    fontSize: 14, 
+                    fontWeight: '600', 
+                    color: '#666',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    flex: 1
+                  }}>
+                    ✅ Tasks
+                  </Text>
+                  <View style={{
+                    backgroundColor: '#34c759',
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}>
+                    <Text style={{ 
+                      fontSize: 12, 
+                      color: 'white',
+                      fontWeight: '700'
                     }}>
-                      {todo.item_text}
+                      {post.completed_todos_count}/{post.todo_items_count}
                     </Text>
-                    {todo.completed_by_name && (
-                      <Text style={{ fontSize: 12, color: '#34c759', marginLeft: 8 }}>
-                        by {todo.completed_by_name}
+                  </View>
+                </View>
+                
+                <View style={{ 
+                  backgroundColor: '#f8f9fa', 
+                  borderRadius: 12, 
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: '#e9ecef'
+                }}>
+                  {todoItems[post.id].map((todo: TodoListItem, todoIndex: number) => (
+                    <TouchableOpacity
+                      key={todo.id}
+                      onPress={() => handleToggleTodo(post.id, todo.id)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 10,
+                        paddingHorizontal: 4,
+                        borderBottomWidth: todoIndex < todoItems[post.id].length - 1 ? 1 : 0,
+                        borderBottomColor: '#e9ecef'
+                      }}
+                    >
+                      <View style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        borderWidth: 2,
+                        borderColor: todo.is_completed ? '#34c759' : '#ddd',
+                        backgroundColor: todo.is_completed ? '#34c759' : 'white',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: 12
+                      }}>
+                        {todo.is_completed && (
+                          <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
+                        )}
+                      </View>
+                      <Text style={{
+                        flex: 1,
+                        fontSize: 15,
+                        color: todo.is_completed ? '#8e8e93' : '#333',
+                        textDecorationLine: todo.is_completed ? 'line-through' : 'none',
+                        fontWeight: todo.is_completed ? '400' : '500',
+                        lineHeight: 20
+                      }}>
+                        {todo.item_text}
                       </Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
+                      {todo.completed_by_name && (
+                        <View style={{
+                          backgroundColor: '#e8f5e8',
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 10,
+                          marginLeft: 8
+                        }}>
+                          <Text style={{ 
+                            fontSize: 11, 
+                            color: '#34c759',
+                            fontWeight: '600'
+                          }}>
+                            ✓ {todo.completed_by_name}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             )}
 
             {/* Reminder Info */}
             {post.post_type === 'reminder' && post.metadata_encrypted && (
               <View style={{ 
-                marginTop: 8, 
-                padding: 8, 
-                backgroundColor: '#fff3cd', 
-                borderRadius: 8,
-                borderLeftWidth: 3,
-                borderLeftColor: '#ff9500'
+                marginBottom: 16,
+                padding: 16, 
+                backgroundColor: '#fff8e1', 
+                borderRadius: 12,
+                borderLeftWidth: 4,
+                borderLeftColor: '#ff9500',
+                shadowColor: '#ff9500',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
               }}>
-                <Text style={{ fontSize: 14, color: '#856404' }}>
-                  ⏰ Reminder set for family
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 20, marginRight: 10 }}>⏰</Text>
+                  <Text style={{ 
+                    fontSize: 15, 
+                    color: '#e65100',
+                    fontWeight: '600',
+                    flex: 1
+                  }}>
+                    Family Reminder Set
+                  </Text>
+                </View>
+                <Text style={{ 
+                  fontSize: 13, 
+                  color: '#ef6c00',
+                  marginTop: 4,
+                  marginLeft: 30
+                }}>
+                  Everyone will be notified
                 </Text>
               </View>
             )}
@@ -468,41 +720,99 @@ const FamilyBoard: React.FC<FamilyBoardProps> = ({
         ))}
 
         {filteredPosts.length === 0 && (
-          <View style={{ alignItems: 'center', marginTop: 40 }}>
-            <Text style={{ fontSize: 18, color: '#8e8e93' }}>
-              No posts found
+          <View style={{ 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            paddingVertical: 80,
+            paddingHorizontal: 40
+          }}>
+            <View style={{
+              width: 120,
+              height: 120,
+              borderRadius: 60,
+              backgroundColor: '#f1f3f4',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 20
+            }}>
+              <Text style={{ fontSize: 50 }}>📝</Text>
+            </View>
+            <Text style={{ 
+              fontSize: 24, 
+              fontWeight: '700', 
+              color: '#333',
+              textAlign: 'center',
+              marginBottom: 8
+            }}>
+              No posts yet
             </Text>
-            <Text style={{ fontSize: 14, color: '#8e8e93', marginTop: 4 }}>
-              Create your first family post!
+            <Text style={{ 
+              fontSize: 16, 
+              color: '#8e8e93',
+              textAlign: 'center',
+              lineHeight: 22,
+              maxWidth: 280
+            }}>
+              Share memories, create todo lists, set reminders, and stay connected with your family
             </Text>
+            <TouchableOpacity
+              onPress={() => setShowCreatePost(true)}
+              style={{
+                marginTop: 30,
+                backgroundColor: '#007aff',
+                paddingHorizontal: 24,
+                paddingVertical: 12,
+                borderRadius: 25,
+                flexDirection: 'row',
+                alignItems: 'center',
+                shadowColor: '#007aff',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 4,
+              }}
+            >
+              <Text style={{ fontSize: 16, marginRight: 6 }}>✨</Text>
+              <Text style={{ 
+                fontSize: 16, 
+                color: 'white',
+                fontWeight: '600'
+              }}>
+                Create First Post
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
 
       {/* Create Post Button */}
-      <TouchableOpacity
-        onPress={() => setShowCreatePost(true)}
-        style={{
-          position: 'absolute',
-          bottom: 20,
-          right: 20,
-          width: 56,
-          height: 56,
-          backgroundColor: '#007aff',
-          borderRadius: 28,
-          justifyContent: 'center',
-          alignItems: 'center',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 8,
-        }}
-      >
-        <Text style={{ fontSize: 24, color: 'white', fontWeight: 'bold' }}>+</Text>
-      </TouchableOpacity>
+      {filteredPosts.length > 0 && (
+        <TouchableOpacity
+          onPress={() => setShowCreatePost(true)}
+          style={{
+            position: 'absolute',
+            bottom: 30,
+            right: 20,
+            width: 60,
+            height: 60,
+            backgroundColor: '#007aff',
+            borderRadius: 30,
+            justifyContent: 'center',
+            alignItems: 'center',
+            shadowColor: '#007aff',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            elevation: 8,
+            transform: [{ scale: 1 }], // For potential animation
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: 28, color: 'white', fontWeight: '300' }}>+</Text>
+        </TouchableOpacity>
+      )}
 
-      {/* Create Post Modal (simplified) */}
+      {/* Create Post Modal */}
       {showCreatePost && (
         <View style={{
           position: 'absolute',
@@ -510,80 +820,156 @@ const FamilyBoard: React.FC<FamilyBoardProps> = ({
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
+          backgroundColor: 'rgba(0,0,0,0.6)',
           justifyContent: 'center',
           alignItems: 'center',
           padding: 20,
         }}>
           <View style={{
             backgroundColor: 'white',
-            borderRadius: 12,
-            padding: 20,
+            borderRadius: 20,
+            padding: 24,
             width: '100%',
             maxWidth: 400,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.3,
+            shadowRadius: 20,
+            elevation: 10,
           }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-              Create New Post
-            </Text>
+            {/* Modal Header */}
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 20
+            }}>
+              <Text style={{ 
+                fontSize: 22, 
+                fontWeight: '700',
+                color: '#1a1a1a'
+              }}>
+                ✨ Create Post
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowCreatePost(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: '#f1f3f4',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Text style={{ fontSize: 18, color: '#666' }}>×</Text>
+              </TouchableOpacity>
+            </View>
             
-            <TextInput
-              placeholder="Post title (optional)"
-              value={newPostTitle}
-              onChangeText={setNewPostTitle}
-              style={{
-                borderWidth: 1,
-                borderColor: '#c6c6c8',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 12,
-                fontSize: 16,
-              }}
-            />
+            {/* Title Input */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{
+                fontSize: 14,
+                fontWeight: '600',
+                color: '#666',
+                marginBottom: 8,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5
+              }}>
+                Title (Optional)
+              </Text>
+              <TextInput
+                placeholder="Give your post a title..."
+                value={newPostTitle}
+                onChangeText={setNewPostTitle}
+                style={{
+                  borderWidth: 2,
+                  borderColor: '#f1f3f4',
+                  borderRadius: 12,
+                  padding: 16,
+                  fontSize: 16,
+                  backgroundColor: '#f8f9fa',
+                  fontWeight: '500'
+                }}
+                placeholderTextColor="#8e8e93"
+              />
+            </View>
             
-            <TextInput
-              placeholder="What's on your mind?"
-              value={newPostContent}
-              onChangeText={setNewPostContent}
-              multiline
-              numberOfLines={4}
-              style={{
-                borderWidth: 1,
-                borderColor: '#c6c6c8',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                fontSize: 16,
-                textAlignVertical: 'top',
-              }}
-            />
+            {/* Content Input */}
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{
+                fontSize: 14,
+                fontWeight: '600',
+                color: '#666',
+                marginBottom: 8,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5
+              }}>
+                Content
+              </Text>
+              <TextInput
+                placeholder="What's on your mind? Share with your family..."
+                value={newPostContent}
+                onChangeText={setNewPostContent}
+                multiline
+                numberOfLines={4}
+                style={{
+                  borderWidth: 2,
+                  borderColor: '#f1f3f4',
+                  borderRadius: 12,
+                  padding: 16,
+                  fontSize: 16,
+                  textAlignVertical: 'top',
+                  backgroundColor: '#f8f9fa',
+                  minHeight: 100,
+                  fontWeight: '400'
+                }}
+                placeholderTextColor="#8e8e93"
+              />
+            </View>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            {/* Action Buttons */}
+            <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
                 onPress={() => setShowCreatePost(false)}
                 style={{
                   flex: 1,
-                  padding: 12,
-                  backgroundColor: '#8e8e93',
-                  borderRadius: 8,
-                  marginRight: 8,
+                  paddingVertical: 16,
+                  backgroundColor: '#f1f3f4',
+                  borderRadius: 12,
                   alignItems: 'center',
                 }}
               >
-                <Text style={{ color: 'white', fontWeight: '600' }}>Cancel</Text>
+                <Text style={{ 
+                  color: '#666', 
+                  fontWeight: '600',
+                  fontSize: 16
+                }}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
               
               <TouchableOpacity
                 onPress={handleCreatePost}
                 style={{
                   flex: 1,
-                  padding: 12,
+                  paddingVertical: 16,
                   backgroundColor: '#007aff',
-                  borderRadius: 8,
-                  marginLeft: 8,
+                  borderRadius: 12,
                   alignItems: 'center',
+                  shadowColor: '#007aff',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
                 }}
               >
-                <Text style={{ color: 'white', fontWeight: '600' }}>Post</Text>
+                <Text style={{ 
+                  color: 'white', 
+                  fontWeight: '700',
+                  fontSize: 16
+                }}>
+                  🚀 Share
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
