@@ -1,6 +1,12 @@
 /**
  * Family Service - Implements FR-2.1, FR-2.2, FR-2.3, FR-2.4
- * Uses Supabase directly for family management
+ * Uses Supabase with RPC functions for atomic operations
+ *
+ * Requirements Implementation:
+ * - FR-2.1: Family Creation (adults only)
+ * - FR-2.2: Multi-Family Support (unlimited families per user)
+ * - FR-2.3: Role-Based Access Control (head, member, child_member)
+ * - FR-2.4: Member Invitations (invite codes, QR codes, expiration)
  */
 
 import { supabase } from "./auth.service";
@@ -20,64 +26,48 @@ import {
 
 class FamilyService {
   /**
+   * Helper to safely retrieve the current auth user
+   */
+  private async requireUser() {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    if (!data.user) throw new Error("User not authenticated");
+    return data.user;
+  }
+
+  /**
    * FR-2.1: Family Creation
    * Adult users can create new families with custom names
+   * Uses RPC function for atomic operation (family + membership + invite)
    */
   async createFamily(data: CreateFamilyDto): Promise<Family> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await this.requireUser();
 
-    if (!user) {
-      throw new Error("User not authenticated");
+    // Create family using RPC function (handles all validations)
+    const { data: familyData, error: rpcError } = await supabase.rpc(
+      "create_family_with_head",
+      {
+        _name: data.name,
+        _avatar_url: data.avatar_url || null,
+        _theme_color: data.theme_color || null,
+        _creator: user.id,
+      }
+    );
+
+    if (rpcError) {
+      console.error("Failed to create family:", rpcError);
+      throw new Error(rpcError.message || "Failed to create family");
     }
 
-    // Check if user is adult (child accounts cannot create families)
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .select("account_type")
-      .eq("id", user.id)
-      .single();
-
-    if (userError) throw userError;
-
-    if (userData.account_type === "child") {
-      throw new Error("Child accounts cannot create families");
+    if (!familyData) {
+      throw new Error("No family data returned from creation");
     }
 
-    // Create family
-    const { data: family, error } = await supabase
-      .from("families")
-      .insert({
-        name: data.name,
-        avatar_url: data.avatar_url,
-        theme_color: data.theme_color || this.generateRandomColor(),
-        created_by: user.id,
-      })
-      .select()
-      .single();
+    // The RPC returns JSON, parse if needed
+    const family =
+      typeof familyData === "string" ? JSON.parse(familyData) : familyData;
 
-    if (error) throw error;
-
-    // Assign creator as Head (admin)
-    const { error: memberError } = await supabase
-      .from("family_members")
-      .insert({
-        family_id: family.id,
-        user_id: user.id,
-        role: "head",
-      });
-
-    if (memberError) throw memberError;
-
-    // Generate initial invite code
-    await this.createInvite({
-      family_id: family.id,
-      role: "member",
-      expires_in_days: 30,
-    });
-
-    return family;
+    return family as Family;
   }
 
   /**
@@ -85,13 +75,7 @@ class FamilyService {
    * Get all families the current user belongs to
    */
   async getUserFamilies(): Promise<FamilyWithMembers[]> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      throw new Error("User not authenticated");
-    }
+    const user = await this.requireUser();
 
     // Get all families where user is a member
     const { data: memberships, error: memberError } = await supabase
@@ -132,7 +116,7 @@ class FamilyService {
           role,
           joined_at,
           invited_by,
-          users (
+          users!family_members_user_id_fkey (
             id,
             name,
             username,
@@ -163,13 +147,7 @@ class FamilyService {
    * FR-2.2: Switch between families (just retrieve specific family)
    */
   async getFamily(familyId: string): Promise<FamilyWithMembers> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      throw new Error("User not authenticated");
-    }
+    const user = await this.requireUser();
 
     // Check if user is member of this family
     const { data: membership, error: memberError } = await supabase
@@ -203,7 +181,7 @@ class FamilyService {
         role,
         joined_at,
         invited_by,
-        users (
+        users!family_members_user_id_fkey (
           id,
           name,
           username,
@@ -228,54 +206,28 @@ class FamilyService {
   }
 
   /**
-   * FR-2.2: Leave a family (non-admins only)
+   * FR-2.2: Leave a family (non-head or multi-head families)
+   * Uses RPC function for validation and atomic operation
    */
   async leaveFamily(familyId: string): Promise<void> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await this.requireUser();
 
-    if (!user) {
-      throw new Error("User not authenticated");
+    const { data, error } = await supabase.rpc("leave_family", {
+      _family_id: familyId,
+      _user_id: user.id,
+    });
+
+    if (error) {
+      console.error("Failed to leave family:", error);
+      throw new Error(error.message || "Failed to leave family");
     }
-
-    // Check user's role
-    const { data: membership, error: memberError } = await supabase
-      .from("family_members")
-      .select("role")
-      .eq("family_id", familyId)
-      .eq("user_id", user.id)
-      .single();
-
-    if (memberError) throw memberError;
-
-    if (membership.role === "head") {
-      throw new Error(
-        "Head cannot leave family. Transfer ownership or delete the family."
-      );
-    }
-
-    // Remove membership
-    const { error } = await supabase
-      .from("family_members")
-      .delete()
-      .eq("family_id", familyId)
-      .eq("user_id", user.id);
-
-    if (error) throw error;
   }
 
   /**
    * FR-2.2: Delete a family (admins only)
    */
   async deleteFamily(familyId: string): Promise<void> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      throw new Error("User not authenticated");
-    }
+    const user = await this.requireUser();
 
     // Check if user is head
     const { data: membership, error: memberError } = await supabase
@@ -304,13 +256,7 @@ class FamilyService {
    * FR-2.1: Update family details
    */
   async updateFamily(familyId: string, data: UpdateFamilyDto): Promise<Family> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      throw new Error("User not authenticated");
-    }
+    const user = await this.requireUser();
 
     // Check permissions (head only)
     const permissions = await this.getFamilyPermissions(familyId);
@@ -335,27 +281,30 @@ class FamilyService {
    * Get permissions for current user in a family
    */
   async getFamilyPermissions(familyId: string): Promise<FamilyPermissions> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      throw new Error("User not authenticated");
-    }
+    const user = await this.requireUser();
 
     const { data: membership, error } = await supabase
       .from("family_members")
-      .select("role, users(account_type)")
+      .select("role, users!family_members_user_id_fkey(account_type)")
       .eq("family_id", familyId)
       .eq("user_id", user.id)
       .single();
 
     if (error || !membership) {
+      console.error("Error fetching permissions:", error);
       return this.getDefaultPermissions();
     }
 
     const role = membership.role as FamilyRole;
     const accountType = (membership.users as any)?.account_type;
+
+    console.log("📋 Permission Check:", {
+      familyId,
+      userId: user.id,
+      role,
+      accountType,
+      rawMembership: membership,
+    });
 
     return {
       // Head: Full control
@@ -494,9 +443,19 @@ class FamilyService {
         users (name)
       `
       )
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase insert family_invites error:", error);
+      throw new Error(error.message || "Failed to create invite");
+    }
+
+    if (!invite) {
+      console.error(
+        "Supabase insert returned no rows for family_invites insert"
+      );
+      throw new Error("Insert succeeded but no invite record was returned");
+    }
 
     return {
       ...invite,
@@ -541,71 +500,37 @@ class FamilyService {
 
   /**
    * FR-2.4: Join family via invite code
+   * Uses RPC function for validation and atomic operation
    */
   async joinFamily(data: JoinFamilyDto): Promise<Family> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await this.requireUser();
 
-    if (!user) {
-      throw new Error("User not authenticated");
+    // Use RPC function for atomic join operation
+    const { data: result, error } = await supabase.rpc(
+      "join_family_with_code",
+      {
+        _invite_code: data.invite_code,
+        _user_id: user.id,
+      }
+    );
+
+    if (error) {
+      console.error("Failed to join family:", error);
+      throw new Error(error.message || "Failed to join family");
     }
 
-    // Get invite details
-    const invite = await this.getInviteDetails(data.invite_code);
+    const parsedResult =
+      typeof result === "string" ? JSON.parse(result) : result;
 
-    // Check if user is already a member
-    const { data: existingMember } = await supabase
-      .from("family_members")
-      .select("id")
-      .eq("family_id", invite.family_id)
-      .eq("user_id", user.id)
-      .single();
-
-    if (existingMember) {
-      throw new Error("You are already a member of this family");
+    if (!parsedResult.success) {
+      throw new Error("Failed to join family");
     }
 
-    // For child accounts, require parental approval
-    const { data: userData } = await supabase
-      .from("users")
-      .select("account_type, parent_id")
-      .eq("id", user.id)
-      .single();
-
-    if (userData?.account_type === "child") {
-      // TODO: Implement parental approval flow
-      throw new Error(
-        "Child accounts require parental approval to join families"
-      );
-    }
-
-    // Add user to family
-    const { error: memberError } = await supabase
-      .from("family_members")
-      .insert({
-        family_id: invite.family_id,
-        user_id: user.id,
-        role: invite.role,
-        invited_by: invite.created_by,
-      });
-
-    if (memberError) throw memberError;
-
-    // Increment invite uses
-    const { error: updateError } = await supabase
-      .from("family_invites")
-      .update({ uses: invite.uses + 1 })
-      .eq("id", invite.id);
-
-    if (updateError)
-      console.error("Failed to update invite uses:", updateError);
-
-    // Return family details
+    // Fetch and return the family details
     const { data: family, error: familyError } = await supabase
       .from("families")
       .select("*")
-      .eq("id", invite.family_id)
+      .eq("id", parsedResult.family_id)
       .single();
 
     if (familyError) throw familyError;

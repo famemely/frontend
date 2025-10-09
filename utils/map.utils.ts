@@ -21,13 +21,13 @@ export function generateRandomCoordinate(
 /**
  * Filter members by status
  */
-export function filterMembersByStatus(
-  members: FamilyMember[],
-  status?: "active" | "idle" | "offline"
-): FamilyMember[] {
-  if (!status) return members;
-  return members.filter((member) => member.status === status);
-}
+// export function filterMembersByStatus(
+//   members: FamilyMember[],
+//   status?: "active" | "idle" | "offline"
+// ): FamilyMember[] {
+//   if (!status) return members;
+//   return members.filter((member) => member.status === status);
+// }
 
 /**
  * Filter members by proximity (placeholder - would need actual distance calculation)

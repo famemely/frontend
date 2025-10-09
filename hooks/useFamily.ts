@@ -34,6 +34,9 @@ export function useFamily() {
         setCurrentFamilyId(data[0].id);
       }
     } catch (err) {
+      // show error in console for debugging
+      console.error("Error loading families:", err);
+
       setError(err instanceof Error ? err.message : "Failed to load families");
     } finally {
       setLoading(false);
@@ -64,6 +67,8 @@ export function useFamily() {
         setCurrentFamilyId(newFamily.id); // Switch to new family
         return newFamily;
       } catch (err) {
+        // debug log error
+        console.error("Error creating family:", err);
         const message =
           err instanceof Error ? err.message : "Failed to create family";
         setError(message);
@@ -210,6 +215,76 @@ export function useFamily() {
     [currentFamilyId, loadFamilies]
   );
 
+  // FR-2.4: Create invite
+  const createInvite = useCallback(async (data: CreateInviteDto) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const invite = await familyService.createInvite(data);
+      return invite;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create invite";
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // FR-2.4: Get family invites
+  const getFamilyInvites = useCallback(async (familyId: string) => {
+    setError(null);
+    try {
+      return await familyService.getFamilyInvites(familyId);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load invites";
+      setError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  // FR-2.4: Delete invite
+  const deleteInvite = useCallback(async (inviteId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await familyService.deleteInvite(inviteId);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete invite";
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // FR-2.4: Join family with invite code
+  const joinFamily = useCallback(
+    async (inviteCode: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const family = await familyService.joinFamily({
+          invite_code: inviteCode,
+        });
+        await loadFamilies(); // Reload families after joining
+        setCurrentFamilyId(family.id); // Switch to newly joined family
+        return family;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to join family";
+        setError(message);
+        throw new Error(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loadFamilies]
+  );
+
   return {
     // State
     families,
@@ -231,6 +306,12 @@ export function useFamily() {
     getPermissions,
     updateMemberRole,
     removeMember,
+
+    // FR-2.4: Invitations
+    createInvite,
+    getFamilyInvites,
+    deleteInvite,
+    joinFamily,
 
     // Utility
     reload: loadFamilies,

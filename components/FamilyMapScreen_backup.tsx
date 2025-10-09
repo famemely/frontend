@@ -8,7 +8,31 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-// Map removed: previously used react-native-maps. Placeholder view instead.
+// Map removed: previously                <View style={styles.memberInfo}>
+                  <Text style={styles.memberName}>{member.user.name}</Text>
+                  <Text style={styles.memberStatus}>
+                    {member.status === 'active' ? 'Active now' : 'Idle'}
+                  </Text>
+                </View>
+
+                <View style={styles.memberActions}>
+                  <TouchableOpacity
+                    style={styles.quickActionButton}
+                    onPress={() => navigation.navigate('modal', { 
+                      view: 'familyManagement', 
+                      openMemberManagement: '1',
+                      memberId: member.id 
+                    })}
+                  >
+                    <Text style={styles.quickActionText}>⚙️</Text>
+                  </TouchableOpacity>
+                  <View
+                    style={[
+                      styles.statusIndicator,
+                      member.status === 'active' ? styles.statusActive : styles.statusIdle
+                    ]}
+                  />
+                </View>ative-maps. Placeholder view instead.
 import { MAP_CONFIG, MAP_TABS, MapTab } from '../constants/maps.config';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -187,7 +211,18 @@ export default function FamilyMapScreen() {
 
         {/* Family Members Section */}
         <View style={styles.membersSection}>
-          <Text style={styles.sectionTitle}>FAMILY MEMBERS</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>FAMILY MEMBERS</Text>
+            <TouchableOpacity
+              style={styles.manageFamilyButton}
+              onPress={() => navigation.navigate('modal', { 
+                view: 'familyManagement',
+                openMemberManagement: '1'
+              })}
+            >
+              <Text style={styles.manageFamilyButtonText}>⚙️ Manage</Text>
+            </TouchableOpacity>
+          </View>
           
           <ScrollView showsVerticalScrollIndicator={false}>
             {familyMembers.map((member) => (
@@ -225,6 +260,25 @@ export default function FamilyMapScreen() {
             ))}
           </ScrollView>
         </View>
+
+        {/* Quick Family Management Info */}
+        {currentFamily && (
+          <View style={styles.quickInfoCard}>
+            <Text style={styles.quickInfoTitle}>👥 Family Management</Text>
+            <Text style={styles.quickInfoText}>
+              Tap "⚙️ Manage" above to invite members, change roles, or remove members from your family.
+            </Text>
+            <TouchableOpacity
+              style={styles.quickInfoButton}
+              onPress={() => navigation.navigate('modal', { 
+                view: 'familyManagement',
+                openMemberManagement: '1'
+              })}
+            >
+              <Text style={styles.quickInfoButtonText}>Open Member Management</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Floating Action Button for Family Management */}
@@ -535,5 +589,62 @@ const createStyles = (theme: any) =>
     fabText: {
       fontSize: 24,
       color: '#FFFFFF',
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    manageFamilyButton: {
+      backgroundColor: theme.colors.primary,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.borderRadius.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    manageFamilyButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    quickInfoCard: {
+      backgroundColor: theme.colors.card,
+      marginHorizontal: theme.spacing.md,
+      marginVertical: theme.spacing.sm,
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      shadowColor: theme.colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    quickInfoTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.colors.text,
+      marginBottom: theme.spacing.xs,
+    },
+    quickInfoText: {
+      fontSize: 14,
+      color: theme.colors.placeholder,
+      lineHeight: 20,
+      marginBottom: theme.spacing.md,
+    },
+    quickInfoButton: {
+      backgroundColor: theme.colors.accent,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.borderRadius.md,
+      alignItems: 'center',
+    },
+    quickInfoButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
     },
   });

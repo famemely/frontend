@@ -17,14 +17,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('🔐 AuthContext: Starting initialization...');
     initializeAuth();
     
     // Listen to auth state changes
     const { data: { subscription } } = authService.onAuthStateChange((session) => {
+      console.log('🔐 AuthContext: Auth state changed', session ? 'LOGGED IN' : 'LOGGED OUT');
       if (session) {
         const currentUser = authService.getCurrentUser();
+        console.log('🔐 AuthContext: Current user:', currentUser);
         setUser(currentUser);
       } else {
+        console.log('🔐 AuthContext: No session, setting user to null');
         setUser(null);
       }
     });
@@ -35,30 +39,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const initializeAuth = async () => {
+    console.log('🔐 AuthContext: initializeAuth called');
     try {
       const isInitialized = await authService.initialize();
+      console.log('🔐 AuthContext: initialize returned:', isInitialized);
       if (isInitialized) {
         const currentUser = authService.getCurrentUser();
+        console.log('🔐 AuthContext: Got current user:', currentUser);
         setUser(currentUser);
+      } else {
+        console.log('🔐 AuthContext: Not initialized, no user');
       }
     } catch (error) {
-      // Auth initialization error recorded internally by service
+      console.error('🔐 AuthContext: Error during initialization:', error);
     } finally {
       setIsLoading(false);
+      console.log('🔐 AuthContext: Loading complete');
     }
   };
 
   const login = async () => {
+    console.log('🔐 AuthContext: login called');
     const currentUser = authService.getCurrentUser();
+    console.log('🔐 AuthContext: Setting user after login:', currentUser);
     setUser(currentUser);
   };
 
   const logout = async () => {
+    console.log('🔐 AuthContext: logout called');
     try {
       await authService.logout();
+      console.log('🔐 AuthContext: Logout successful');
       setUser(null);
     } catch (error) {
-      // Logout error (suppressed)
+      console.error('🔐 AuthContext: Logout error:', error);
     }
   };
 

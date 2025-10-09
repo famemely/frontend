@@ -13,6 +13,7 @@ import {
   buildOtpAuthUri,
   resolveApiBaseUrl,
 } from "../constants/auth.config";
+import { userProfileService } from "./user-profile.service";
 
 const SUPABASE_URL = AUTH_CONFIG.SUPABASE.URL;
 const SUPABASE_KEY = AUTH_CONFIG.SUPABASE.ANON_KEY;
@@ -22,7 +23,19 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error(AUTH_CONFIG.ERRORS.MISSING_SUPABASE_ENV);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Create Supabase client with AsyncStorage for session persistence
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
+
+console.log(
+  "🔧 Supabase client created with AsyncStorage for session persistence"
+);
 
 class AuthService {
   private session: Session | null = null;
@@ -43,27 +56,63 @@ class AuthService {
   }
 
   async initialize() {
+    console.log("🔑 AuthService: initialize() called");
     try {
       const {
         data: { session },
         error,
       } = await supabase.auth.getSession();
+
+      console.log("🔑 AuthService: getSession result:", {
+        hasSession: !!session,
+        error: error?.message,
+        userId: session?.user?.id,
+      });
+
       if (error) {
+        console.error("🔑 AuthService: Error getting session:", error);
         return false;
       }
 
       if (session) {
+        console.log("🔑 AuthService: Session found, setting session");
         this.session = session;
+
+        // Ensure user profile exists in public.users table
+        try {
+          console.log("🔑 AuthService: Ensuring user profile...");
+          await userProfileService.ensureUserProfile(
+            session.user.id,
+            session.user.email || "",
+            session.user.user_metadata?.full_name
+          );
+          console.log("🔑 AuthService: User profile ensured");
+        } catch (profileError) {
+          console.error(
+            "🔑 AuthService: Failed to ensure user profile:",
+            profileError
+          );
+        }
+
+        console.log("🔑 AuthService: Exchanging token for app JWT...");
         const appAuth = await this.exchangeTokenForAppJWT(session.access_token);
         if (appAuth) {
+          console.log("🔑 AuthService: Token exchange successful");
           this.appToken = appAuth.appToken;
           this.user = appAuth.user;
+          console.log("🔑 AuthService: User set:", this.user);
           return true;
+        } else {
+          console.log("🔑 AuthService: Token exchange failed");
         }
+      } else {
+        console.log("🔑 AuthService: No session found");
       }
     } catch (error) {
+      console.error("🔑 AuthService: Exception in initialize:", error);
       return false;
     }
+    console.log("🔑 AuthService: Returning false");
     return false;
   }
 
@@ -165,6 +214,17 @@ class AuthService {
       this.session = session;
 
       if (session) {
+        // Ensure user profile exists in public.users table
+        try {
+          await userProfileService.ensureUserProfile(
+            session.user.id,
+            session.user.email || "",
+            session.user.user_metadata?.full_name
+          );
+        } catch (profileError) {
+          console.error("Failed to ensure user profile:", profileError);
+        }
+
         const { data: aalData } =
           await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
         if (aalData?.currentLevel === "aal1" && aalData?.nextLevel === "aal2") {
@@ -204,6 +264,18 @@ class AuthService {
       throw new Error(AUTH_CONFIG.ERRORS.SIGNUP_NO_SESSION);
 
     this.session = authData.session;
+
+    // Ensure user profile exists in public.users table
+    try {
+      await userProfileService.ensureUserProfile(
+        authData.session.user.id,
+        authData.session.user.email || "",
+        data.fullName
+      );
+    } catch (profileError) {
+      console.error("Failed to ensure user profile:", profileError);
+    }
+
     const appAuth = await this.exchangeTokenForAppJWT(
       authData.session.access_token
     );
@@ -228,6 +300,17 @@ class AuthService {
     if (error) throw error;
     if (!authData.session) throw new Error(AUTH_CONFIG.ERRORS.LOGIN_NO_SESSION);
 
+    // Ensure user profile exists in public.users table
+    try {
+      await userProfileService.ensureUserProfile(
+        authData.session.user.id,
+        authData.session.user.email || "",
+        authData.session.user.user_metadata?.full_name
+      );
+    } catch (profileError) {
+      console.error("Failed to ensure user profile:", profileError);
+    }
+
     const { data: aalData, error: aalError } =
       await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
 
@@ -249,7 +332,7 @@ class AuthService {
 
     this.appToken = appAuth.appToken;
     this.user = appAuth.user;
-    
+
     return {
       user: appAuth.user,
       session: authData.session,

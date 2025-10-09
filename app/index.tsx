@@ -10,7 +10,14 @@ export default function Index() {
   const { user, isLoading, login } = useAuth();
   const { theme } = useTheme();
 
+  console.log('📱 Index: Rendering with state:', { 
+    hasUser: !!user, 
+    isLoading,
+    userId: user?.id 
+  });
+
   if (isLoading) {
+    console.log('📱 Index: Showing loading screen');
     return (
       <View style={{ 
         flex: 1, 
@@ -24,8 +31,10 @@ export default function Index() {
   }
 
   if (!user) {
+    console.log('📱 Index: No user, showing AuthScreen');
     return <AuthScreen onAuthSuccess={login} />;
   }
 
+  console.log('📱 Index: User found, showing FamilyMapScreen');
   return <FamilyMapScreen />;
 }

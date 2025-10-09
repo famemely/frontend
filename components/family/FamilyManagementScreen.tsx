@@ -21,12 +21,17 @@ import { useColorScheme } from 'react-native';
 import { lightTheme, darkTheme } from '@/constants/theme';
 import { useFamily } from '@/hooks/useFamily';
 import { FamilyWithMembers, FamilyPermissions } from '@/types/family.types';
+import FamilyMembersManagement from './FamilyMembersManagement';
+import UserManagementScreen from './UserManagementScreen';
+import QuickInviteModal from './QuickInviteModal';
+import JoinFamilyModal from './JoinFamilyModal';
 
 interface FamilyManagementScreenProps {
   onClose?: () => void;
+  autoOpenCreate?: boolean;
 }
 
-export default function FamilyManagementScreen({ onClose }: FamilyManagementScreenProps) {
+export default function FamilyManagementScreen({ onClose, autoOpenCreate }: FamilyManagementScreenProps) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const styles = createStyles(theme);
@@ -51,6 +56,10 @@ export default function FamilyManagementScreen({ onClose }: FamilyManagementScre
   const [refreshing, setRefreshing] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [showUserManagementModal, setShowUserManagementModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
   const [permissions, setPermissions] = useState<FamilyPermissions | null>(null);
 
   // Form state for create/edit
@@ -63,6 +72,13 @@ export default function FamilyManagementScreen({ onClose }: FamilyManagementScre
       loadPermissions();
     }
   }, [currentFamilyId]);
+
+  useEffect(() => {
+    if (autoOpenCreate) {
+      // Small timeout to allow mount to complete before opening modal
+      setTimeout(() => openCreateModal(), 250);
+    }
+  }, [autoOpenCreate]);
 
   const loadPermissions = async () => {
     const perms = await getPermissions();
@@ -93,7 +109,9 @@ export default function FamilyManagementScreen({ onClose }: FamilyManagementScre
       setThemeColor('#4ECDC4');
       Alert.alert('Success', 'Family created successfully!');
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to create family');
+      console.error('createFamily error:', err);
+      const message = err instanceof Error ? err.message : JSON.stringify(err);
+      Alert.alert('Error', message || 'Failed to create family');
     }
   };
 
@@ -189,9 +207,25 @@ export default function FamilyManagementScreen({ onClose }: FamilyManagementScre
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>My Families</Text>
-        <TouchableOpacity onPress={openCreateModal} style={styles.createButton}>
-          <Text style={styles.createButtonText}>+ Create</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            onPress={() => setShowJoinModal(true)}
+            style={styles.joinButton}
+          >
+            <Text style={styles.joinButtonText}>🎟️ Join</Text>
+          </TouchableOpacity>
+          {currentFamily && permissions?.canInviteMembers && (
+            <TouchableOpacity
+              onPress={() => setShowInviteModal(true)}
+              style={[styles.inviteButton, { backgroundColor: currentFamily.theme_color }]}
+            >
+              <Text style={styles.inviteButtonText}>📤 Invite</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={openCreateModal} style={styles.createButton}>
+            <Text style={styles.createButtonText}>+ Create</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Error Message */}
@@ -250,6 +284,26 @@ export default function FamilyManagementScreen({ onClose }: FamilyManagementScre
                 {permissions.canInviteMembers ? '✓' : '✗'} Invite members
               </Text>
             </View>
+
+            {/* Manage Members Button */}
+            <TouchableOpacity
+              style={[styles.manageMembersButton, { backgroundColor: currentFamily.theme_color }]}
+              onPress={() => setShowMembersModal(true)}
+            >
+              <Text style={styles.manageMembersButtonText}>👥 Manage Members & Invites</Text>
+            </TouchableOpacity>
+
+            {/* User Management Button */}
+            {permissions.canManageMembers && (
+              <TouchableOpacity
+                style={[styles.userManagementButton, { borderColor: currentFamily.theme_color }]}
+                onPress={() => setShowUserManagementModal(true)}
+              >
+                <Text style={[styles.userManagementButtonText, { color: currentFamily.theme_color }]}>
+                  ⚙️ Advanced User Management
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       )}
@@ -379,6 +433,63 @@ export default function FamilyManagementScreen({ onClose }: FamilyManagementScre
           </View>
         </View>
       </Modal>
+
+      {/* Members Management Modal */}
+      <Modal
+        visible={showMembersModal}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowMembersModal(false)}
+      >
+        {currentFamilyId && (
+          <FamilyMembersManagement
+            familyId={currentFamilyId}
+            onClose={() => {
+              setShowMembersModal(false);
+              reload(); // Refresh family data after closing
+            }}
+          />
+        )}
+      </Modal>
+
+      {/* User Management Modal */}
+      <Modal
+        visible={showUserManagementModal}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowUserManagementModal(false)}
+      >
+        {currentFamilyId && (
+          <UserManagementScreen
+            familyId={currentFamilyId}
+            onClose={() => {
+              setShowUserManagementModal(false);
+              reload(); // Refresh family data after closing
+            }}
+          />
+        )}
+      </Modal>
+
+      {/* Quick Invite Modal */}
+      {currentFamily && currentFamilyId && (
+        <QuickInviteModal
+          visible={showInviteModal}
+          familyId={currentFamilyId}
+          familyName={currentFamily.name}
+          themeColor={currentFamily.theme_color || '#4ECDC4'}
+          onClose={() => {
+            setShowInviteModal(false);
+            reload(); // Refresh to show new invite
+          }}
+        />
+      )}
+
+      {/* Join Family Modal */}
+      <JoinFamilyModal
+        visible={showJoinModal}
+        onClose={() => setShowJoinModal(false)}
+        onSuccess={() => reload()}
+      />
     </View>
   );
 }
@@ -459,6 +570,32 @@ const createStyles = (theme: any) =>
       fontSize: 24,
       fontWeight: '600',
       color: theme.colors.text,
+    },
+    headerButtons: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      alignItems: 'center',
+    },
+    joinButton: {
+      backgroundColor: theme.colors.success || '#4ECDC4',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.md,
+    },
+    joinButtonText: {
+      color: '#FFFFFF',
+      fontWeight: '500',
+      fontSize: 14,
+    },
+    inviteButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.md,
+    },
+    inviteButtonText: {
+      color: '#FFFFFF',
+      fontWeight: '500',
+      fontSize: 14,
     },
     createButton: {
       backgroundColor: theme.colors.primary,
@@ -634,6 +771,33 @@ const createStyles = (theme: any) =>
       fontSize: 12,
       color: theme.colors.textSecondary,
       marginTop: 4,
+    },
+    manageMembersButton: {
+      marginTop: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      borderRadius: theme.borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    manageMembersButtonText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    userManagementButton: {
+      marginTop: theme.spacing.sm,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      borderRadius: theme.borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      backgroundColor: 'transparent',
+    },
+    userManagementButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
     },
     modalBackdrop: {
       flex: 1,

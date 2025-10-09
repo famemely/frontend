@@ -239,6 +239,15 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Text style={styles.addNewText}>··· add new</Text>
               </TouchableOpacity>
+
+              {/* MANAGE FAMILIES BUTTON */}
+              <TouchableOpacity
+                style={styles.manageFamiliesButton}
+                onPress={() => navigation?.navigate('modal', { view: 'familyManagement' })}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.manageFamiliesText}>⚙️ Manage Families & Members</Text>
+              </TouchableOpacity>
             </ScrollView>
           )}
         </View>
@@ -519,6 +528,22 @@ const createStyles = (theme: any) =>
       fontWeight: '400',
       color: theme.colors.accent,
       fontStyle: 'italic',
+    },
+
+    // Manage families button
+    manageFamiliesButton: {
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.sm,
+      marginTop: theme.spacing.sm,
+      backgroundColor: theme.colors.primary + '20',
+      borderRadius: theme.borderRadius.sm,
+    },
+
+    manageFamiliesText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.colors.primary,
+      textAlign: 'center',
     },
 
     // Ghost Mode container
