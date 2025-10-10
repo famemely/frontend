@@ -23,7 +23,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error(AUTH_CONFIG.ERRORS.MISSING_SUPABASE_ENV);
 }
 
-// Create Supabase client with AsyncStorage for session persistence
+// Create Supabase client with AsyncStorage for session persistence`1
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     storage: AsyncStorage,
@@ -120,7 +120,10 @@ class AuthService {
     supabaseToken: string
   ): Promise<{ user: User; appToken: string } | null> {
     const url = `${API_BASE_URL}${AUTH_CONFIG.API.ENDPOINTS.EXCHANGE_TOKEN}`;
+    console.log("🔑 AuthService: exchangeTokenForAppJWT - URL:", url);
+
     try {
+      console.log("🔑 AuthService: Making fetch request...");
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -129,8 +132,16 @@ class AuthService {
         },
       });
 
+      console.log("🔑 AuthService: Response status:", response.status);
       const text = await response.text().catch(() => "");
+      console.log("🔑 AuthService: Response body:", text);
+
       if (!response.ok) {
+        console.error(
+          "🔑 AuthService: Response not OK:",
+          response.status,
+          text
+        );
         this.recordError("exchange-token", `HTTP ${response.status}`, {
           status: response.status,
           body: text,
@@ -141,7 +152,9 @@ class AuthService {
       let result: any = {};
       try {
         result = text ? JSON.parse(text) : {};
+        console.log("🔑 AuthService: Parsed result:", result);
       } catch (e) {
+        console.error("🔑 AuthService: Failed to parse JSON:", e);
         this.recordError("exchange-token", "Invalid JSON in response", {
           body: text,
         });
@@ -149,6 +162,7 @@ class AuthService {
       }
 
       if (!result.appToken || !result.user) {
+        console.error("🔑 AuthService: Missing appToken or user in response");
         this.recordError(
           "exchange-token",
           "Missing appToken or user in response",
@@ -165,8 +179,18 @@ class AuthService {
         AUTH_CONFIG.STORAGE_KEYS.USER_DATA,
         JSON.stringify(result.user)
       );
+      console.log("🔑 AuthService: Token exchange successful");
       return result;
     } catch (error: any) {
+      console.error(
+        "🔑 AuthService: Exception in exchangeTokenForAppJWT:",
+        error
+      );
+      console.error("🔑 AuthService: Error details:", {
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack,
+      });
       this.recordError("exchange-token", error?.message || "Unknown error");
       return null;
     }

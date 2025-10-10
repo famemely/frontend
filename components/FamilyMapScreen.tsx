@@ -6,9 +6,9 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Image
 } from 'react-native';
-// Map removed: previously used react-native-maps. Placeholder view instead.
 import { MAP_CONFIG, MAP_TABS, MapTab } from '../constants/maps.config';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -17,8 +17,15 @@ import { useFamily } from '../hooks/useFamily';
 import { FamilyMember, FamilyWithMembers } from '../types/family.types';
 import Sidebar from './Sidebar';
 import { useNavigation } from '@react-navigation/native';
+import LocationTrackingControl from './location/LocationTrackingControl';
 
 const { height } = Dimensions.get('window');
+
+// OpenStreetMap Static Map URL generator
+const getStaticMapUrl = (lat: number, lon: number, zoom: number = 13, width: number = 800, height: number = 600) => {
+  // Using OpenStreetMap Static Map API via staticmap.openstreetmap.de
+  return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lon}&zoom=${zoom}&size=${width}x${height}&maptype=mapnik`;
+};
 
 export default function FamilyMapScreen() {
   const { user } = useAuth();
@@ -27,9 +34,6 @@ export default function FamilyMapScreen() {
   
   // Get real family data from useFamily hook
   const { families, currentFamily, currentFamilyId, loading, error } = useFamily();
-
-  // Feature flag: allow disabling map for debugging crashes
-  const MAP_ENABLED = true; // Flip to false to isolate issues
   
   // State management
   const [menuOpen, setMenuOpen] = useState(false);
@@ -37,6 +41,7 @@ export default function FamilyMapScreen() {
   const [bottomBarExpanded, setBottomBarExpanded] = useState(false);
   const [selectedTab, setSelectedTab] = useState<MapTab>('all');
   const [selectedMember, setSelectedMember] = useState<string | number | null>(null);
+  const [mapCenter, setMapCenter] = useState({ lat: 37.7879, lon: -122.4074 }); // San Francisco
 
   // Use custom drawer animation hook
   const { slideAnim, translateX } = useDrawerAnimation(menuOpen);
@@ -45,30 +50,55 @@ export default function FamilyMapScreen() {
   console.log('🏠 FamilyMapScreen: Current family ID:', currentFamilyId);
 
   // Sample family members data (TODO: Fetch from API)
-  // Using `any[]` here because FamilyMember in types includes many fields.
   const familyMembers = useMemo(() => [
-    { id: '1', user: { name: 'Mom' }, color: '#FF6B6B', status: 'active' },
-    { id: '2', user: { name: 'Dad' }, color: '#4ECDC4', status: 'active' },
-    { id: '3', user: { name: 'Sarah' }, color: '#FFE66D', status: 'idle' },
-    { id: '4', user: { name: 'Jake' }, color: '#95E1D3', status: 'active' },
+    { id: '1', user: { name: 'Mom' }, color: '#FF6B6B', status: 'active', latitude: 37.78825, longitude: -122.4324 },
+    { id: '2', user: { name: 'Dad' }, color: '#4ECDC4', status: 'active', latitude: 37.78925, longitude: -122.4314 },
+    { id: '3', user: { name: 'Sarah' }, color: '#FFE66D', status: 'idle', latitude: 37.78725, longitude: -122.4334 },
+    { id: '4', user: { name: 'Jake' }, color: '#95E1D3', status: 'active', latitude: 37.78625, longitude: -122.4344 },
   ], []) as any[];
-
-  const initialRegion = useMemo(() => ({ ...MAP_CONFIG.DEFAULT_REGION }), [] as const);
 
   const safeMembers = familyMembers.filter(m => !!m && m.id != null);
 
-  // Marker rendering removed with map dependency.
-  const renderMarker = useCallback(() => null, []);
+  // Generate static map URL
+  const { width: screenWidth } = Dimensions.get('window');
+  const staticMapUrl = getStaticMapUrl(mapCenter.lat, mapCenter.lon, 13, Math.floor(screenWidth * 2), Math.floor(height * 2));
 
   const styles = createStyles(theme);
 
   return (
     <View style={styles.container}>
-      {/* Map Area - Real Map */}
+      {/* Map Area with OpenStreetMap */}
       <View style={styles.mapContainer}>
-        <View style={styles.mapPlaceholder}>
-          <Text style={styles.mapPlaceholderTitle}>Map Feature Coming Soon</Text>
-          <Text style={styles.mapPlaceholderSubtitle}>We removed the map module temporarily.</Text>
+        {/* Static OpenStreetMap Background */}
+        <View style={styles.staticMapContainer}>
+          <Image
+            source={{ uri: staticMapUrl }}
+            style={styles.staticMap}
+            resizeMode="cover"
+          />
+          
+          {/* Family Member Markers Overlay */}
+          <View style={styles.markersContainer}>
+            <View style={styles.mapOverlay}>
+              <Text style={styles.mapOverlayTitle}>🗺️ Family Locations</Text>
+              <ScrollView style={styles.membersList}>
+                {safeMembers.map((member) => (
+                  <View key={member.id} style={styles.memberItem}>
+                    <View style={[styles.memberDot, { backgroundColor: member.color }]} />
+                    <Text style={styles.memberName}>{member.user?.name}</Text>
+                    <Text style={styles.memberStatus}>
+                      {member.status === 'active' ? '🟢 Active' : '🟡 Idle'}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+        
+        {/* Location Tracking Control Overlay */}
+        <View style={styles.locationControlOverlay}>
+          <LocationTrackingControl familyId={currentFamilyId} />
         </View>
       </View>
 
@@ -258,6 +288,71 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.colors.muted,
     },
     map: { width: '100%', height: '100%' },
+    locationControlOverlay: {
+      position: 'absolute',
+      top: theme.spacing.md,
+      right: theme.spacing.md,
+      zIndex: 10,
+    },
+    staticMapContainer: {
+      flex: 1,
+      position: 'relative',
+    },
+    staticMap: {
+      width: '100%',
+      height: '100%',
+    },
+    markersContainer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      pointerEvents: 'none',
+    },
+    mapOverlay: {
+      position: 'absolute',
+      bottom: theme.spacing.lg,
+      left: theme.spacing.md,
+      right: theme.spacing.md,
+      backgroundColor: theme.colors.card,
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.md,
+      maxHeight: 200,
+      shadowColor: theme.colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 5,
+      pointerEvents: 'auto',
+    },
+    mapOverlayTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.colors.text,
+      marginBottom: theme.spacing.sm,
+    },
+    membersList: {
+      maxHeight: 120,
+    },
+    memberItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: theme.spacing.xs,
+      gap: theme.spacing.sm,
+    },
+    memberDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      borderWidth: 2,
+      borderColor: theme.colors.card,
+    },
+    memberStatus: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      marginLeft: 'auto',
+    },
     mapDisabled: {
       flex: 1,
       alignItems: 'center',
@@ -473,12 +568,6 @@ const createStyles = (theme: any) =>
       color: theme.colors.text,
       marginBottom: 2,
       letterSpacing: 0.2,
-    },
-    memberStatus: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      fontWeight: '400',
-      opacity: 0.7,
     },
     statusIndicator: {
       width: 14,

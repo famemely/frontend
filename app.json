@@ -13,6 +13,11 @@
       "bundleIdentifier": "com.famemely.app"
     },
     "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "process.env.GOOGLE_MAPS_API_KEY"
+        }
+      },
       "package": "com.famemely.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -49,7 +54,9 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sqlite",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
