@@ -1,6 +1,7 @@
 /**
  * Family Dashboard
  * Main dashboard showing family overview with navigation to different sections
+ * Redesigned to match auth screen aesthetic
  */
 
 import React from 'react';
@@ -11,6 +12,7 @@ import {
     TouchableOpacity,
     ScrollView,
     Dimensions,
+    Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -31,51 +33,16 @@ export default function FamilyDashboard() {
         {
             id: 'map',
             title: 'Family Map',
-            description: 'View family member locations',
+            description: 'Real-time location tracking',
             icon: '🗺️',
-            color: theme.colors.primary,
             onPress: () => router.push('/FamilyMap'),
-        },
-        {
-            id: 'testmap',
-            title: 'Test Map',
-            description: 'Simple map test with markers',
-            icon: '🧪',
-            color: '#FF6B6B',
-            onPress: () => router.push('/TestMap'),
-        },
-        {
-            id: 'minimalmap',
-            title: 'Minimal Map',
-            description: 'Bare minimum map test',
-            icon: '📍',
-            color: '#A78BFA',
-            onPress: () => router.push('/MinimalMap'),
-        },
-        {
-            id: 'diagnostics',
-            title: 'Map Diagnostics',
-            description: 'Debug and test map functionality',
-            icon: '🔧',
-            color: '#F97316',
-            onPress: () => router.push('/MapDiagnostics'),
-        },
-        {
-            id: 'envtest',
-            title: 'Environment Test',
-            description: 'Test environment variables',
-            icon: '⚙️',
-            color: '#8B5CF6',
-            onPress: () => router.push('/EnvTest'),
         },
         {
             id: 'members',
             title: 'Family Members',
-            description: 'Manage family members',
+            description: 'Manage your family circle',
             icon: '👥',
-            color: '#4ECDC4',
             onPress: () => {
-                // Navigation to family members screen
                 console.log('Navigate to members');
             },
         },
@@ -84,20 +51,16 @@ export default function FamilyDashboard() {
             title: 'Invitations',
             description: 'Send and manage invites',
             icon: '✉️',
-            color: '#FFE66D',
             onPress: () => {
-                // Navigation to invitations screen
                 console.log('Navigate to invitations');
             },
         },
         {
             id: 'settings',
-            title: 'Family Settings',
-            description: 'Manage family settings',
+            title: 'Settings',
+            description: 'Privacy and preferences',
             icon: '⚙️',
-            color: '#95E1D3',
             onPress: () => {
-                // Navigation to settings screen
                 console.log('Navigate to settings');
             },
         },
@@ -105,74 +68,95 @@ export default function FamilyDashboard() {
 
     return (
         <View style={styles.container}>
-            {/* Header */}
+            {/* Elegant Header */}
             <View style={styles.header}>
-                <Text style={styles.greeting}>Hello, {user?.fullName || user?.email || 'User'}!</Text>
-                <Text style={styles.familyName}>
-                    {currentFamily?.name || 'No Family Selected'}
+                <Text style={styles.logo}>Famemely</Text>
+                <Text style={styles.greeting}>
+                    Hello, {user?.fullName?.split(' ')[0] || 'there'}
                 </Text>
-                {currentFamily && (
-                    <Text style={styles.memberCount}>
-                        {currentFamily.member_count || currentFamily.members?.length || 0} members
-                    </Text>
-                )}
             </View>
 
-            {/* Dashboard Cards */}
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
+                {/* Family Card */}
+                <View style={styles.familyCard}>
+                    <View style={styles.familyCardHeader}>
+                        <Text style={styles.familyName}>
+                            {currentFamily?.name || 'Your Family'}
+                        </Text>
+                        {currentFamily && (
+                            <View style={styles.memberBadge}>
+                                <Text style={styles.memberBadgeText}>
+                                    {currentFamily.member_count || currentFamily.members?.length || 0}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                    <Text style={styles.familySubtext}>
+                        {currentFamily ? 'Active family circle' : 'Create or join a family'}
+                    </Text>
+                </View>
+
                 {/* Quick Stats */}
-                <View style={styles.statsContainer}>
-                    <View style={styles.statCard}>
-                        <Text style={styles.statValue}>{families?.length || 0}</Text>
+                <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>{families?.length || 0}</Text>
                         <Text style={styles.statLabel}>Families</Text>
                     </View>
-                    <View style={styles.statCard}>
-                        <Text style={styles.statValue}>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>
                             {currentFamily?.members?.length || 0}
                         </Text>
                         <Text style={styles.statLabel}>Members</Text>
                     </View>
-                    <View style={styles.statCard}>
-                        <Text style={styles.statValue}>
-                            {currentFamily?.members?.length || 0}
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>
+                            {currentFamily?.members?.filter((m: any) => m.status === 'active').length || 0}
                         </Text>
                         <Text style={styles.statLabel}>Active</Text>
                     </View>
                 </View>
 
-                {/* Action Cards */}
-                <View style={styles.cardsContainer}>
-                    {dashboardCards.map((card) => (
+                {/* Navigation Cards */}
+                <View style={styles.navSection}>
+                    <Text style={styles.sectionTitle}>Quick Access</Text>
+                    {dashboardCards.map((card, index) => (
                         <TouchableOpacity
                             key={card.id}
-                            style={[styles.card, { borderLeftColor: card.color }]}
+                            style={[
+                                styles.navCard,
+                                index === dashboardCards.length - 1 && styles.navCardLast,
+                            ]}
                             onPress={card.onPress}
                             activeOpacity={0.7}
                         >
-                            <View style={styles.cardContent}>
-                                <View style={[styles.iconContainer, { backgroundColor: card.color + '20' }]}>
-                                    <Text style={styles.icon}>{card.icon}</Text>
-                                </View>
-                                <View style={styles.cardText}>
-                                    <Text style={styles.cardTitle}>{card.title}</Text>
-                                    <Text style={styles.cardDescription}>{card.description}</Text>
-                                </View>
-                                <Text style={styles.arrow}>›</Text>
+                            <View style={styles.navCardIcon}>
+                                <Text style={styles.iconEmoji}>{card.icon}</Text>
                             </View>
+                            <View style={styles.navCardContent}>
+                                <Text style={styles.navCardTitle}>{card.title}</Text>
+                                <Text style={styles.navCardDesc}>{card.description}</Text>
+                            </View>
+                            <Text style={styles.navCardArrow}>›</Text>
                         </TouchableOpacity>
                     ))}
                 </View>
 
-                {/* Recent Activity Section (Placeholder) */}
-                <View style={styles.section}>
+                {/* Recent Activity */}
+                <View style={styles.activitySection}>
                     <Text style={styles.sectionTitle}>Recent Activity</Text>
-                    <View style={styles.activityCard}>
-                        <Text style={styles.activityText}>
-                            No recent activity to show
+                    <View style={styles.activityEmpty}>
+                        <Text style={styles.activityEmptyIcon}>📭</Text>
+                        <Text style={styles.activityEmptyText}>
+                            No recent activity
+                        </Text>
+                        <Text style={styles.activityEmptySubtext}>
+                            Activity from your family will appear here
                         </Text>
                     </View>
                 </View>
@@ -195,6 +179,13 @@ const createStyles = (theme: any) =>
             borderBottomLeftRadius: 30,
             borderBottomRightRadius: 30,
         },
+        logo: {
+            fontSize: 36,
+            color: '#FFFFFF',
+            fontWeight: '800',
+            letterSpacing: 1,
+            marginBottom: theme.spacing.xs,
+        },
         greeting: {
             fontSize: 16,
             color: '#FFFFFF',
@@ -202,10 +193,9 @@ const createStyles = (theme: any) =>
             marginBottom: theme.spacing.xs,
         },
         familyName: {
-            fontSize: 28,
-            fontWeight: 'bold',
-            color: '#FFFFFF',
-            marginBottom: theme.spacing.xs,
+            fontSize: 20,
+            fontWeight: '700',
+            color: theme.colors.text,
         },
         memberCount: {
             fontSize: 14,
@@ -218,6 +208,68 @@ const createStyles = (theme: any) =>
         scrollContent: {
             paddingHorizontal: theme.spacing.lg,
             paddingBottom: theme.spacing.xl,
+        },
+        // Family summary card
+        familyCard: {
+            backgroundColor: theme.colors.surface,
+            borderRadius: 16,
+            padding: theme.spacing.lg,
+            marginTop: -24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 6,
+            elevation: 2,
+        },
+        familyCardHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+        },
+        memberBadge: {
+            backgroundColor: '#F0FDF4',
+            borderColor: '#059669',
+            borderWidth: 1,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 12,
+        },
+        memberBadgeText: {
+            color: '#065F46',
+            fontWeight: '700',
+        },
+        familySubtext: {
+            marginTop: 6,
+            color: theme.colors.textSecondary,
+        },
+        // Stats row
+        statsRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+            borderRadius: 16,
+            padding: theme.spacing.lg,
+            marginTop: theme.spacing.lg,
+        },
+        statItem: {
+            flex: 1,
+            alignItems: 'center',
+        },
+        statNumber: {
+            fontSize: 20,
+            fontWeight: '800',
+            color: theme.colors.primary,
+        },
+        statLabel: {
+            fontSize: 12,
+            color: theme.colors.textSecondary,
+            marginTop: 2,
+        },
+        statDivider: {
+            width: 1,
+            alignSelf: 'stretch',
+            backgroundColor: '#E5E5E5',
+            marginHorizontal: theme.spacing.md,
         },
         statsContainer: {
             flexDirection: 'row',
@@ -244,10 +296,7 @@ const createStyles = (theme: any) =>
             color: theme.colors.primary,
             marginBottom: theme.spacing.xs,
         },
-        statLabel: {
-            fontSize: 14,
-            color: theme.colors.textSecondary,
-        },
+        // statLabel defined later for statsRow, keep only one definition
         cardsContainer: {
             gap: theme.spacing.md,
         },
@@ -304,6 +353,52 @@ const createStyles = (theme: any) =>
             color: theme.colors.text,
             marginBottom: theme.spacing.md,
         },
+        // Navigation section
+        navSection: {
+            marginTop: theme.spacing.xl,
+        },
+        navCard: {
+            backgroundColor: theme.colors.surface,
+            borderRadius: 12,
+            padding: theme.spacing.lg,
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: theme.spacing.sm,
+            borderWidth: 1,
+            borderColor: '#E5E5E5',
+        },
+        navCardLast: {
+            marginBottom: 0,
+        },
+        navCardIcon: {
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: '#F7F7F7',
+            marginRight: theme.spacing.md,
+        },
+        iconEmoji: {
+            fontSize: 22,
+        },
+        navCardContent: {
+            flex: 1,
+        },
+        navCardTitle: {
+            fontSize: 16,
+            fontWeight: '600',
+            color: theme.colors.text,
+        },
+        navCardDesc: {
+            fontSize: 12,
+            color: theme.colors.textSecondary,
+            marginTop: 2,
+        },
+        navCardArrow: {
+            fontSize: 24,
+            color: '#999999',
+        },
         activityCard: {
             backgroundColor: theme.colors.surface,
             borderRadius: 15,
@@ -315,9 +410,33 @@ const createStyles = (theme: any) =>
             shadowRadius: 4,
             elevation: 3,
         },
+        // Activity section
+        activitySection: {
+            marginTop: theme.spacing.xl,
+        },
         activityText: {
             fontSize: 14,
             color: theme.colors.textSecondary,
             fontStyle: 'italic',
+        },
+        activityEmpty: {
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+            borderRadius: 12,
+            padding: theme.spacing.lg,
+        },
+        activityEmptyIcon: {
+            fontSize: 36,
+            marginBottom: theme.spacing.sm,
+        },
+        activityEmptyText: {
+            fontSize: 16,
+            fontWeight: '600',
+            color: theme.colors.text,
+        },
+        activityEmptySubtext: {
+            fontSize: 12,
+            color: theme.colors.textSecondary,
+            marginTop: 4,
         },
     });

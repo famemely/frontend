@@ -30,6 +30,14 @@ interface PresenceUpdate {
   last_seen?: number;
 }
 
+interface GhostModeUpdate {
+  user_id: string;
+  family_id?: string; // optional for global scope
+  enabled: boolean;
+  scope: "global" | "family";
+  timestamp?: number;
+}
+
 type EventCallback = (...args: any[]) => void;
 
 class WebSocketService {
@@ -39,6 +47,9 @@ class WebSocketService {
   private maxReconnectAttempts = 10;
   private isManualDisconnect = false;
   private eventListeners = new Map<string, Set<EventCallback>>();
+  // Ghost mode state: global and per-family
+  private globalGhost = new Map<string, boolean>(); // user_id -> enabled
+  private familyGhost = new Map<string, boolean>(); // `${family_id}:${user_id}` -> enabled
 
   private constructor() {}
 
@@ -196,6 +207,22 @@ class WebSocketService {
       this.emitToListeners("notification", data);
     });
 
+    // Ghost mode updates from server
+    this.socket.on("ghost_mode", (data: GhostModeUpdate) => {
+      console.log(
+        "[WebSocket] 👻 Ghost mode update:",
+        data.user_id,
+        data.scope,
+        data.enabled
+      );
+      if (data.scope === "global") {
+        this.globalGhost.set(data.user_id, data.enabled);
+      } else if (data.scope === "family" && data.family_id) {
+        this.familyGhost.set(`${data.family_id}:${data.user_id}`, data.enabled);
+      }
+      this.emitToListeners("ghost_mode", data);
+    });
+
     this.socket.on("location_ack", (data: any) => {
       console.log("[WebSocket] ✓ Location acknowledged");
       this.emitToListeners("location_ack", data);
@@ -318,6 +345,35 @@ class WebSocketService {
         this.ping();
       }
     }, intervalMs);
+  }
+
+  // Announce local ghost mode change to server
+  async setGhostMode(params: {
+    enabled: boolean;
+    scope: "global" | "family";
+    family_id?: string;
+  }): Promise<void> {
+    if (!this.socket?.connected) return;
+    return new Promise((resolve) => {
+      this.socket!.emit("ghost_mode", params, () => resolve());
+    });
+  }
+
+  // Query functions
+  getGhostStatus(
+    userId: string,
+    familyId?: string
+  ): {
+    enabled: boolean;
+    scope: "global" | "family" | null;
+  } {
+    if (this.globalGhost.get(userId)) {
+      return { enabled: true, scope: "global" };
+    }
+    if (familyId && this.familyGhost.get(`${familyId}:${userId}`)) {
+      return { enabled: true, scope: "family" };
+    }
+    return { enabled: false, scope: null };
   }
 }
 

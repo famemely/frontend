@@ -37,21 +37,26 @@ class BackgroundLocationService {
   }
 
   async initialize(): Promise<void> {
-    // Request permissions
+    // Request foreground permissions first
     const { status: foregroundStatus } =
       await Location.requestForegroundPermissionsAsync();
     if (foregroundStatus !== "granted") {
       throw new Error("Foreground location permission not granted");
     }
 
+    // Request background permissions
     const { status: backgroundStatus } =
       await Location.requestBackgroundPermissionsAsync();
     if (backgroundStatus !== "granted") {
-      console.warn("Background location permission not granted");
+      throw new Error(
+        "Background location permission not granted. Please enable 'Allow all the time' in location settings."
+      );
     }
 
     // Define background task
     this.defineBackgroundTask();
+
+    console.log("[Location] ✅ Permissions granted and initialized");
   }
 
   private defineBackgroundTask(): void {
@@ -76,6 +81,40 @@ class BackgroundLocationService {
       console.log("[Location] Already tracking");
       return;
     }
+
+    // Check and request foreground permissions
+    let { status: foregroundStatus } =
+      await Location.getForegroundPermissionsAsync();
+
+    if (foregroundStatus !== "granted") {
+      console.log("[Location] 📍 Requesting foreground location permission...");
+      const result = await Location.requestForegroundPermissionsAsync();
+      foregroundStatus = result.status;
+
+      if (foregroundStatus !== "granted") {
+        throw new Error(
+          "Location permission denied. Please enable location access in Settings."
+        );
+      }
+    }
+
+    // Check and request background permissions
+    let { status: backgroundStatus } =
+      await Location.getBackgroundPermissionsAsync();
+
+    if (backgroundStatus !== "granted") {
+      console.log("[Location] 🔄 Requesting background location permission...");
+      const result = await Location.requestBackgroundPermissionsAsync();
+      backgroundStatus = result.status;
+
+      if (backgroundStatus !== "granted") {
+        throw new Error(
+          "Background location permission denied. Please go to Settings → Famemely → Permissions → Location and select 'Allow all the time'."
+        );
+      }
+    }
+
+    console.log("[Location] ✅ All permissions granted!");
 
     this.currentMode = mode;
     this.currentFamilyId = familyId;

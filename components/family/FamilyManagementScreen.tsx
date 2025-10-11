@@ -18,6 +18,7 @@ import {
   Image,
 } from 'react-native';
 import { useColorScheme } from 'react-native';
+import { useRouter } from 'expo-router';
 import { lightTheme, darkTheme } from '@/constants/theme';
 import { useFamily } from '@/hooks/useFamily';
 import { FamilyWithMembers, FamilyPermissions } from '@/types/family.types';
@@ -34,6 +35,7 @@ interface FamilyManagementScreenProps {
 export default function FamilyManagementScreen({ onClose, autoOpenCreate }: FamilyManagementScreenProps) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const router = useRouter();
   const styles = createStyles(theme);
 
   const {
@@ -216,7 +218,7 @@ export default function FamilyManagementScreen({ onClose, autoOpenCreate }: Fami
           </TouchableOpacity>
           {currentFamily && permissions?.canInviteMembers && (
             <TouchableOpacity
-              onPress={() => setShowInviteModal(true)}
+              onPress={() => router.push('/invitations' as any)}
               style={[styles.inviteButton, { backgroundColor: currentFamily.theme_color }]}
             >
               <Text style={styles.inviteButtonText}>📤 Invite</Text>
@@ -285,22 +287,32 @@ export default function FamilyManagementScreen({ onClose, autoOpenCreate }: Fami
               </Text>
             </View>
 
-            {/* Manage Members Button */}
+            {/* Manage Members Button - Navigate to new screen */}
             <TouchableOpacity
               style={[styles.manageMembersButton, { backgroundColor: currentFamily.theme_color }]}
-              onPress={() => setShowMembersModal(true)}
+              onPress={() => router.push(`/manage-members?familyId=${currentFamily.id}` as any)}
             >
-              <Text style={styles.manageMembersButtonText}>👥 Manage Members & Invites</Text>
+              <Text style={styles.manageMembersButtonText}>👥 Manage Members</Text>
             </TouchableOpacity>
 
-            {/* User Management Button */}
-            {permissions.canManageMembers && (
+            {/* Invitations Button - Navigate to invitations screen */}
+            <TouchableOpacity
+              style={[styles.userManagementButton, { borderColor: currentFamily.theme_color }]}
+              onPress={() => router.push('/invitations' as any)}
+            >
+              <Text style={[styles.userManagementButtonText, { color: currentFamily.theme_color }]}>
+                📤 Manage Invitations
+              </Text>
+            </TouchableOpacity>
+
+            {/* Settings Button - Navigate to family settings */}
+            {permissions.canEditSettings && (
               <TouchableOpacity
                 style={[styles.userManagementButton, { borderColor: currentFamily.theme_color }]}
-                onPress={() => setShowUserManagementModal(true)}
+                onPress={() => router.push(`/family-settings?familyId=${currentFamily.id}` as any)}
               >
                 <Text style={[styles.userManagementButtonText, { color: currentFamily.theme_color }]}>
-                  ⚙️ Advanced User Management
+                  ⚙️ Family Settings
                 </Text>
               </TouchableOpacity>
             )}

@@ -8,6 +8,7 @@ import {
     View,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { useRouter } from 'expo-router';
 import { SidebarProps } from '../types/family.types';
 
 /**
@@ -32,6 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   unreadBoardsCount = 0,
 }) => {
   const { theme } = useTheme();
+  const router = useRouter();
   const styles = createStyles(theme);
 
   // State to control the dropdown expansion of Families section
@@ -311,6 +313,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           <Text style={styles.menuText}>Settings</Text>
         </TouchableOpacity>
+
+        {/* Theme switcher removed: controlled via map top-right icon */}
       </ScrollView>
 
       {/* FOOTER SECTION - Legal links at bottom */}

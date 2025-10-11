@@ -9,7 +9,8 @@
  * - FR-2.4: Member Invitations (invite codes, QR codes, expiration)
  */
 
-import { supabase } from "./auth.service";
+import { supabase } from "./supabase.client";
+import { cacheSyncService } from "./cache-sync.service";
 import {
   Family,
   FamilyMember,
@@ -29,10 +30,20 @@ class FamilyService {
    * Helper to safely retrieve the current auth user
    */
   private async requireUser() {
-    const { data, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    if (!data.user) throw new Error("User not authenticated");
-    return data.user;
+    try {
+      if (!supabase || !supabase.auth) {
+        throw new Error(
+          "Supabase client not properly initialized. Please check your environment variables."
+        );
+      }
+      const { data, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      if (!data.user) throw new Error("User not authenticated");
+      return data.user;
+    } catch (error) {
+      console.error("Error in requireUser:", error);
+      throw error;
+    }
   }
 
   /**
@@ -66,6 +77,18 @@ class FamilyService {
     // The RPC returns JSON, parse if needed
     const family =
       typeof familyData === "string" ? JSON.parse(familyData) : familyData;
+
+    // Notify backend to update cache for new family (creator is family head)
+    try {
+      await cacheSyncService.notifyUserAddedToFamily(
+        family.id,
+        user.id,
+        "head"
+      );
+    } catch (error) {
+      console.warn("Failed to sync cache for new family:", error);
+      // Non-critical error, continue
+    }
 
     return family as Family;
   }
@@ -131,7 +154,7 @@ class FamilyService {
 
       familiesWithMembers.push({
         ...family,
-        members: members.map((m) => ({
+        members: members.map((m: FamilyMember & { users?: any }) => ({
           ...m,
           user: m.users as any,
         })),
@@ -196,7 +219,7 @@ class FamilyService {
 
     return {
       ...family,
-      members: members.map((m) => ({
+      members: members.map((m: FamilyMember & { users?: any }) => ({
         ...m,
         user: m.users as any,
       })),
@@ -220,6 +243,14 @@ class FamilyService {
     if (error) {
       console.error("Failed to leave family:", error);
       throw new Error(error.message || "Failed to leave family");
+    }
+
+    // Notify backend to invalidate caches for user leaving family
+    try {
+      await cacheSyncService.notifyUserRemovedFromFamily(familyId, user.id);
+    } catch (error) {
+      console.warn("Failed to sync cache for leaving family:", error);
+      // Non-critical error, continue
     }
   }
 
@@ -250,6 +281,14 @@ class FamilyService {
       .eq("id", familyId);
 
     if (error) throw error;
+
+    // Notify backend to invalidate all caches for this family
+    try {
+      await cacheSyncService.notifyFamilyDeleted(familyId);
+    } catch (error) {
+      console.warn("Failed to sync cache for deleted family:", error);
+      // Non-critical error, continue
+    }
   }
 
   /**
@@ -272,6 +311,14 @@ class FamilyService {
       .single();
 
     if (error) throw error;
+
+    // Notify backend to refresh family cache
+    try {
+      await cacheSyncService.refreshFamilyCache(familyId);
+    } catch (error) {
+      console.warn("Failed to sync cache for updated family:", error);
+      // Non-critical error, continue
+    }
 
     return family;
   }
@@ -361,6 +408,18 @@ class FamilyService {
       .eq("user_id", data.user_id);
 
     if (error) throw error;
+
+    // Notify backend to update member role cache
+    try {
+      await cacheSyncService.notifyMemberRoleUpdated(
+        data.family_id,
+        data.user_id,
+        data.new_role
+      );
+    } catch (error) {
+      console.warn("Failed to sync cache for updated member role:", error);
+      // Non-critical error, continue
+    }
   }
 
   /**
@@ -394,6 +453,14 @@ class FamilyService {
       .eq("user_id", userId);
 
     if (error) throw error;
+
+    // Notify backend to invalidate caches for removed member
+    try {
+      await cacheSyncService.notifyUserRemovedFromFamily(familyId, userId);
+    } catch (error) {
+      console.warn("Failed to sync cache for removed member:", error);
+      // Non-critical error, continue
+    }
   }
 
   /**
@@ -535,6 +602,19 @@ class FamilyService {
 
     if (familyError) throw familyError;
 
+    // Notify backend to update cache for new member joining
+    // Get the role from parsedResult if available, otherwise default to 'member'
+    try {
+      await cacheSyncService.notifyUserAddedToFamily(
+        parsedResult.family_id,
+        user.id,
+        parsedResult.role || "member"
+      );
+    } catch (error) {
+      console.warn("Failed to sync cache for joining family:", error);
+      // Non-critical error, continue
+    }
+
     return family;
   }
 
@@ -570,7 +650,7 @@ class FamilyService {
 
     if (error) throw error;
 
-    return invites.map((invite) => ({
+    return invites.map((invite: any) => ({
       ...invite,
       family: invite.families as any,
       creator: invite.users as any,

@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createClient, Session } from "@supabase/supabase-js";
+import { Session } from "@supabase/supabase-js";
 import { Alert, Platform } from "react-native";
 import {
   User,
@@ -14,28 +14,9 @@ import {
   resolveApiBaseUrl,
 } from "../constants/auth.config";
 import { userProfileService } from "./user-profile.service";
+import { supabase } from "./supabase.client";
 
-const SUPABASE_URL = AUTH_CONFIG.SUPABASE.URL;
-const SUPABASE_KEY = AUTH_CONFIG.SUPABASE.ANON_KEY;
 const API_BASE_URL = resolveApiBaseUrl(AUTH_CONFIG.API.BASE_URL, Platform.OS);
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  throw new Error(AUTH_CONFIG.ERRORS.MISSING_SUPABASE_ENV);
-}
-
-// Create Supabase client with AsyncStorage for session persistence`1
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
-
-console.log(
-  "🔧 Supabase client created with AsyncStorage for session persistence"
-);
 
 class AuthService {
   private session: Session | null = null;
@@ -423,6 +404,25 @@ class AuthService {
     await AsyncStorage.multiRemove(["@app_token", "@user_data"]);
   }
 
+  /**
+   * Update user password
+   * Requires user to be authenticated
+   */
+  async updatePassword(newPassword: string): Promise<void> {
+    if (!this.isAuthenticated()) {
+      throw new Error(AUTH_CONFIG.ERRORS.NOT_AUTHENTICATED);
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      this.recordError("update-password", error.message);
+      throw error;
+    }
+  }
+
   // Child-specific signup removed. Use `signupWithEmail` with `dateOfBirth` instead.
 
   async enableMFA(): Promise<{
@@ -669,7 +669,7 @@ class AuthService {
 }
 
 export const authService = new AuthService();
-export { supabase };
+// supabase exported above with declaration
 
 export type {
   User,

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import {
   Animated,
   Dimensions,
@@ -16,14 +16,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useDrawerAnimation } from '../hooks/useDrawerAnimation';
 import { useFamily } from '../hooks/useFamily';
+import { useLocation } from '../hooks/useLocation';
 import { FamilyMember, FamilyWithMembers } from '../types/family.types';
 import Sidebar from './Sidebar';
 import LocationTrackingControl from './location/LocationTrackingControl';
+import EmojiIcon from './ui/EmojiIcon';
 
 const { height } = Dimensions.get('window');
 
 // Determine map provider - use GOOGLE on Android if available, otherwise default
 const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
+
+// Color palette for member markers
+const MEMBER_COLORS = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3', '#A29BFE', '#FD79A8', '#FDCB6E', '#6C5CE7'];
 
 export default function FamilyMapScreen() {
   const { user } = useAuth();
@@ -32,13 +37,25 @@ export default function FamilyMapScreen() {
   const mapRef = useRef<MapView>(null);
 
   // Get real family data from useFamily hook
-  const { families, currentFamily, currentFamilyId, loading, error } = useFamily();
+  const { families, currentFamily, currentFamilyId, loading, error, switchFamily } = useFamily();
+
+  // Get location tracking functionality
+  const {
+    isConnected,
+    isTracking,
+    memberLocations,
+    memberPresence,
+    memberGhost,
+    refreshLocations,
+  } = useLocation(currentFamilyId);
 
   // State management
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [bottomBarExpanded, setBottomBarExpanded] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<MapTab>('all');
+  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(
+    (currentFamilyId as string | null) || (families && families.length > 0 ? families[0].id : null)
+  );
   const [selectedMember, setSelectedMember] = useState<string | number | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>({
@@ -47,6 +64,8 @@ export default function FamilyMapScreen() {
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
+  const [lastTapTime, setLastTapTime] = useState<number>(0);
+  const [lastTappedMember, setLastTappedMember] = useState<string | null>(null);
 
   // Use custom drawer animation hook
   const { slideAnim, translateX } = useDrawerAnimation(menuOpen);
@@ -54,16 +73,95 @@ export default function FamilyMapScreen() {
   console.log('🏠 FamilyMapScreen: Current families:', families?.length || 0);
   console.log('🏠 FamilyMapScreen: Current family ID:', currentFamilyId);
   console.log('🗺️ Map Ready:', mapReady);
+  console.log('📍 Member Locations:', memberLocations.size);
+  console.log('🔌 WebSocket Connected:', isConnected);
 
-  // Sample family members data (TODO: Fetch from API)
-  const familyMembers = useMemo(() => [
-    { id: '1', name: 'Mom', color: '#FF6B6B', status: 'active', latitude: 37.78825, longitude: -122.4324 },
-    { id: '2', name: 'Dad', color: '#4ECDC4', status: 'active', latitude: 37.78925, longitude: -122.4314 },
-    { id: '3', name: 'Sarah', color: '#FFE66D', status: 'idle', latitude: 37.78725, longitude: -122.4334 },
-    { id: '4', name: 'Jake', color: '#95E1D3', status: 'active', latitude: 37.78625, longitude: -122.4344 },
-  ], []);
+  // Auto-refresh locations when component mounts or family changes
+  useEffect(() => {
+    if (currentFamilyId && isConnected) {
+      refreshLocations();
+    }
+  }, [currentFamilyId, isConnected]);
+
+  // Ensure a family is selected once families/currentFamilyId are loaded
+  useEffect(() => {
+    if (!selectedFamilyId) {
+      if (currentFamilyId) {
+        setSelectedFamilyId(currentFamilyId);
+      } else if (families && families.length > 0) {
+        setSelectedFamilyId(families[0].id);
+      }
+    } else if (families && !families.some(f => f.id === selectedFamilyId)) {
+      // Previously selected family no longer exists; pick first available
+      setSelectedFamilyId(families[0]?.id ?? null);
+    }
+  }, [currentFamilyId, families]);
+
+  // Convert memberLocations Map to array with additional data
+  const familyMembers = useMemo(() => {
+    const members: any[] = [];
+    let colorIndex = 0;
+
+    // Build a quick lookup of userId -> name from selected family's members
+    const selectedFamily = families?.find(f => f.id === selectedFamilyId);
+    const nameByUserId = new Map<string, string>();
+    selectedFamily?.members?.forEach(m => {
+      if (m.user_id) {
+        const displayName = m.user?.name || m.user_id;
+        nameByUserId.set(m.user_id, displayName);
+      }
+    });
+
+    memberLocations.forEach((location, userId) => {
+      const presence = memberPresence.get(userId);
+      const isOnline = presence?.status === 'online';
+      const displayName = nameByUserId.get(userId) || userId;
+
+      members.push({
+        id: userId,
+        name: displayName,
+        color: MEMBER_COLORS[colorIndex % MEMBER_COLORS.length],
+        status: isOnline ? 'active' : 'idle',
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        timestamp: location.timestamp,
+        batteryLevel: location.batteryLevel,
+      });
+
+      colorIndex++;
+    });
+
+    return members;
+  }, [memberLocations, memberPresence, families, selectedFamilyId]);
 
   const safeMembers = familyMembers.filter(m => !!m && m.id != null);
+
+  // Center map on all members when locations update
+  useEffect(() => {
+    if (mapReady && safeMembers.length > 0 && mapRef.current) {
+      const coordinates = safeMembers.map(m => ({
+        latitude: m.latitude,
+        longitude: m.longitude,
+      }));
+
+      if (coordinates.length === 1) {
+        // Single member - center on them
+        mapRef.current.animateToRegion({
+          latitude: coordinates[0].latitude,
+          longitude: coordinates[0].longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }, 1000);
+      } else if (coordinates.length > 1) {
+        // Multiple members - fit all in view
+        mapRef.current.fitToCoordinates(coordinates, {
+          edgePadding: { top: 100, right: 50, bottom: 300, left: 50 },
+          animated: true,
+        });
+      }
+    }
+  }, [safeMembers.length, mapReady]);
 
   // Focus on a specific member
   const focusOnMember = useCallback((member: typeof familyMembers[0]) => {
@@ -172,7 +270,6 @@ export default function FamilyMapScreen() {
             userName={user?.fullName || user?.email || 'User'}
             profileImage={null}
             families={families}
-            currentFamilyId={currentFamilyId || undefined}
             unreadBoardsCount={5}
           />
         </Animated.View>
@@ -212,11 +309,11 @@ export default function FamilyMapScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Bottom Expandable Bar */}
+      {/* Bottom Expandable Bar - Redesigned */}
       <View
         style={[
           styles.bottomBar,
-          { height: bottomBarExpanded ? height * 0.6 : 180 }
+          { height: bottomBarExpanded ? height * 0.7 : 200 }
         ]}
       >
         {/* Drag Handle */}
@@ -227,95 +324,269 @@ export default function FamilyMapScreen() {
           <View style={styles.dragHandleBar} />
         </TouchableOpacity>
 
-        {/* Tabs/Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabsContainer}
-          contentContainerStyle={styles.tabsContent}
-        >
-          {MAP_TABS.map((tab) => (
-            <TouchableOpacity
-              key={tab.id}
-              onPress={() => setSelectedTab(tab.id)}
-              style={[
-                styles.tab,
-                selectedTab === tab.id ? styles.tabActive : styles.tabInactive
-              ]}
+        {/* Top Action Bar: Family Tabs + Location + SOS */}
+        <View style={styles.topActionBar}>
+          {/* Scrollable Family Tabs */}
+          <View style={[
+            styles.familyTabsContainer,
+            { flex: families && families.length === 1 ? 6 :
+                    families && families.length === 2 ? 3 :
+                    families && families.length >= 3 ? 2 : 6 }
+          ]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.familyTabsContent}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  selectedTab === tab.id ? styles.tabTextActive : styles.tabTextInactive
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+              {families?.map((family, index) => {
+                const isSelected = selectedFamilyId === family.id;
+                const familyMembers = family.members?.filter(m => m.user_id !== user?.id) || [];
+                
+                return (
+                  <TouchableOpacity
+                    key={family.id}
+                    onPress={() => {
+                      setSelectedFamilyId(family.id);
+                      switchFamily(family.id);
+                    }}
+                    style={[
+                      styles.familyChip,
+                      isSelected && styles.familyChipActive
+                    ]}
+                  >
+                    <Text style={[
+                      styles.familyChipText,
+                      isSelected && styles.familyChipTextActive
+                    ]}>
+                      {family.name}
+                    </Text>
+                    {familyMembers.length > 0 && (
+                      <View style={[
+                        styles.familyMemberBadge,
+                        isSelected && styles.familyMemberBadgeActive
+                      ]}>
+                        <Text style={[
+                          styles.familyMemberBadgeText,
+                          isSelected && styles.familyMemberBadgeTextActive
+                        ]}>
+                          {familyMembers.length}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
 
-        {/* Family Members Section */}
+          {/* Location Management Button */}
+          <TouchableOpacity
+            style={styles.actionBarButton}
+            onPress={() => router.push('/settings/location' as any)}
+          >
+            <Text style={styles.actionBarIcon}>📍</Text>
+          </TouchableOpacity>
+
+          {/* SOS Button */}
+          <TouchableOpacity
+            style={styles.sosButton}
+            onPress={() => {
+              // TODO: Implement SOS functionality
+              alert('SOS Alert sent to all families!');
+            }}
+          >
+            <Text style={styles.sosButtonText}>SOS</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Family Members List - Filtered by Selected Family */}
         <View style={styles.membersSection}>
-          <Text style={styles.sectionTitle}>FAMILY MEMBERS</Text>
+          {(() => {
+            const selectedFamily = families?.find(f => f.id === selectedFamilyId);
+            const filteredMembers = selectedFamily?.members?.filter(m => m.user_id !== user?.id) || [];
+            
+            return (
+              <>
+                <Text style={styles.sectionTitle}>
+                  {selectedFamily?.name.toUpperCase() || 'FAMILY'} MEMBERS ({filteredMembers.length})
+                  {isConnected && <Text style={styles.statusOnline}> • CONNECTED</Text>}
+                </Text>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {familyMembers.map((member) => (
-              <TouchableOpacity
-                key={member.id}
-                onPress={() => {
-                  setSelectedMember(member.id);
-                  focusOnMember(member);
-                }}
-                style={[
-                  styles.memberCard,
-                  selectedMember === member.id ? styles.memberCardSelected : styles.memberCardDefault
-                ]}
-              >
-                <View
-                  style={[
-                    styles.memberAvatar,
-                    { backgroundColor: member.color }
-                  ]}
-                >
-                  <Text style={styles.memberAvatarText}>👤</Text>
-                </View>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {filteredMembers.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Text style={styles.emptyStateText}>
+                        No other members in this family
+                      </Text>
+                      <Text style={styles.emptyStateSubtext}>
+                        Invite members to see their locations
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.inviteButton}
+                        onPress={() => router.push('/invitations' as any)}
+                      >
+                        <Text style={styles.inviteButtonText}>+ Invite Members</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    filteredMembers.map((member, index) => {
+                      const location = memberLocations.get(member.user_id);
+                      const presence = memberPresence.get(member.user_id);
+                      const isOnline = presence?.status === 'online';
+                      const memberColor = MEMBER_COLORS[index % MEMBER_COLORS.length];
+                      const ghost = memberGhost.get(member.user_id);
+                      
+                      // Get display name - fallback chain
+                      const displayName = member.user?.name || 
+                                        member.user?.username || 
+                                        (typeof member.user === 'string' ? member.user : null) ||
+                                        'Unknown Member';
+                      
+                      const lastUpdate = location?.timestamp
+                        ? new Date(location.timestamp).toLocaleTimeString()
+                        : 'Unknown';
 
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{member.name}</Text>
-                  <Text style={styles.memberStatus}>
-                    {member.status === 'active' ? 'Active now' : 'Idle'}
-                  </Text>
-                </View>
+                      // Double-tap detection for location history
+                      const handleMemberPress = () => {
+                        const now = Date.now();
+                        const DOUBLE_TAP_DELAY = 300;
 
-                <View
-                  style={[
-                    styles.statusIndicator,
-                    member.status === 'active' ? styles.statusActive : styles.statusIdle
-                  ]}
-                />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                        if (
+                          lastTappedMember === member.user_id &&
+                          now - lastTapTime < DOUBLE_TAP_DELAY
+                        ) {
+                          // Double tap - show location history
+                          router.push(`/location-history?userId=${member.user_id}&familyId=${selectedFamilyId}` as any);
+                        } else {
+                          // Single tap - move map
+                          setSelectedMember(member.user_id);
+                          if (location && mapRef.current) {
+                            mapRef.current.animateToRegion({
+                              latitude: location.latitude,
+                              longitude: location.longitude,
+                              latitudeDelta: 0.01,
+                              longitudeDelta: 0.01,
+                            }, 1000);
+                          }
+                        }
+
+                        setLastTapTime(now);
+                        setLastTappedMember(member.user_id);
+                      };
+
+                      // Log for debugging
+                      console.log(`👤 Member ${index}:`, {
+                        user_id: member.user_id,
+                        role: member.role,
+                        displayName,
+                        hasLocation: !!location,
+                        isOnline
+                      });
+
+                      return (
+                        <TouchableOpacity
+                          key={member.user_id}
+                          onPress={handleMemberPress}
+                          style={[
+                            styles.memberCard,
+                            selectedMember === member.user_id && styles.memberCardSelected,
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.memberAvatar,
+                              { backgroundColor: memberColor },
+                            ]}
+                          >
+                            <Text style={styles.memberAvatarText}>
+                              {displayName[0]?.toUpperCase() || ''}
+                            </Text>
+                            {!displayName[0] && <EmojiIcon emoji="👤" size={26} />}
+                          </View>
+
+                          <View style={styles.memberInfo}>
+                            <View style={styles.memberNameRow}>
+                              <Text style={styles.memberName}>
+                                {displayName}
+                              </Text>
+                              <View style={[
+                                styles.roleBadge,
+                                member.role === 'head' && styles.roleBadgeHead,
+                                member.role === 'child_member' && styles.roleBadgeChild,
+                              ]}>
+                                {member.role === 'head' && <EmojiIcon emoji="👑" size={12} />}
+                                {member.role === 'child_member' && <EmojiIcon emoji="�" size={12} />}
+                                {member.role === 'member' && <EmojiIcon emoji="�" size={12} />}
+                              </View>
+                            </View>
+                            
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <EmojiIcon emoji={isOnline ? '🟢' : '⚪'} size={14} />
+                              <Text style={styles.memberStatus}>
+                                {isOnline ? 'Active now' : 'Offline'}
+                              </Text>
+                            </View>
+                            
+                            {location ? (
+                              <>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                  <Text style={styles.memberTimestamp}>
+                                    Updated: {lastUpdate}
+                                  </Text>
+                                  {ghost?.enabled && <EmojiIcon emoji="👻" size={12} />}
+                                </View>
+                                {location.batteryLevel !== undefined && (
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <EmojiIcon emoji="🔋" size={12} />
+                                    <Text style={styles.memberBattery}>
+                                      {location.batteryLevel}%
+                                    </Text>
+                                  </View>
+                                )}
+                                {location.accuracy !== undefined && (
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <EmojiIcon emoji="📍" size={12} />
+                                    <Text style={styles.memberAccuracy}>
+                                      ±{Math.round(location.accuracy)}m
+                                    </Text>
+                                  </View>
+                                )}
+                              </>
+                            ) : (
+                              <Text style={styles.memberTimestamp}>
+                                No location data yet
+                              </Text>
+                            )}
+                            
+                            <Text style={styles.doubleTapHint}>
+                              Double-tap for history
+                            </Text>
+                          </View>
+
+                          <View
+                            style={[
+                              styles.statusIndicator,
+                              isOnline ? styles.statusActive : styles.statusIdle,
+                            ]}
+                          />
+                        </TouchableOpacity>
+                      );
+                    })
+                  )}
+                </ScrollView>
+              </>
+            );
+          })()}
         </View>
       </View>
 
       {/* Floating Action Button for Family Management */}
-      {currentFamily ? (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: currentFamily.theme_color || theme.colors.primary }]}
-          onPress={() => router.push('/modal?view=familyManagement')}
-        >
-          <Text style={styles.fabText}>👥</Text>
-        </TouchableOpacity>
-      ) : families && families.length === 0 ? (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.push('/modal?view=familyManagement&openCreate=1')}
-        >
-          <Text style={styles.fabText}>+</Text>
-        </TouchableOpacity>
-      ) : null}
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        onPress={() => router.push('/families' as any)}
+      >
+        <Text style={styles.fabText}>👥</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -493,6 +764,89 @@ const createStyles = (theme: any) => {
       backgroundColor: theme.colors.border,
       borderRadius: theme.borderRadius.full,
     },
+    topActionBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.md,
+      paddingBottom: theme.spacing.sm,
+      gap: theme.spacing.sm,
+    },
+    familyTabsContainer: {
+      flexDirection: 'row',
+    },
+    familyTabsContent: {
+      gap: theme.spacing.xs,
+      paddingRight: theme.spacing.sm,
+    },
+    familyChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#F5F5F5',
+      borderRadius: 20,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderWidth: 1,
+      borderColor: '#E5E5E5',
+    },
+    familyChipActive: {
+      backgroundColor: '#053326',
+      borderColor: '#053326',
+    },
+    familyChipText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: '#666666',
+    },
+    familyChipTextActive: {
+      color: '#FFFFFF',
+    },
+    familyMemberBadge: {
+      backgroundColor: '#053326',
+      borderRadius: 10,
+      minWidth: 20,
+      height: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginLeft: theme.spacing.xs,
+      paddingHorizontal: 6,
+    },
+    familyMemberBadgeActive: {
+      backgroundColor: '#FFFFFF',
+    },
+    familyMemberBadgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+    familyMemberBadgeTextActive: {
+      color: '#053326',
+    },
+    actionBarButton: {
+      width: 48,
+      height: 48,
+      backgroundColor: '#053326',
+      borderRadius: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    actionBarIcon: {
+      fontSize: 20,
+    },
+    sosButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm + 2,
+      backgroundColor: '#DC2626',
+      borderRadius: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+      minWidth: 60,
+    },
+    sosButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '700',
+      letterSpacing: 1,
+    },
     tabsContainer: {
       paddingHorizontal: theme.spacing.md,
       marginBottom: theme.spacing.md,
@@ -540,6 +894,38 @@ const createStyles = (theme: any) => {
       textTransform: 'uppercase',
       opacity: 0.7,
     },
+    statusOnline: {
+      color: '#10B981',
+      fontWeight: '600',
+    },
+    emptyState: {
+      padding: theme.spacing.xl,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyStateText: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    emptyStateSubtext: {
+      fontSize: 14,
+      color: theme.colors.placeholder,
+      textAlign: 'center',
+    },
+    inviteButton: {
+      marginTop: theme.spacing.md,
+      backgroundColor: '#053326',
+      borderRadius: 8,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+    },
+    inviteButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
     memberCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -548,6 +934,7 @@ const createStyles = (theme: any) => {
       borderRadius: theme.borderRadius.md,
       borderWidth: 1,
       borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
     },
     memberCardDefault: {
       backgroundColor: theme.colors.surface,
@@ -572,16 +959,60 @@ const createStyles = (theme: any) => {
     memberInfo: {
       flex: 1,
     },
+    memberNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      marginBottom: 2,
+    },
     memberName: {
       fontSize: 17,
       fontWeight: '400',
       color: theme.colors.text,
-      marginBottom: 2,
       letterSpacing: 0.2,
+      flex: 1,
+    },
+    roleBadge: {
+      backgroundColor: '#E5E5E5',
+      borderRadius: 10,
+      width: 24,
+      height: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    roleBadgeHead: {
+      backgroundColor: '#FFD700',
+    },
+    roleBadgeChild: {
+      backgroundColor: '#93C5FD',
+    },
+    roleBadgeText: {
+      fontSize: 12,
     },
     memberStatus: {
       fontSize: 14,
       color: theme.colors.textSecondary,
+    },
+    memberTimestamp: {
+      fontSize: 12,
+      color: theme.colors.placeholder,
+      marginTop: 2,
+    },
+    memberBattery: {
+      fontSize: 12,
+      color: theme.colors.placeholder,
+      marginTop: 2,
+    },
+    memberAccuracy: {
+      fontSize: 12,
+      color: theme.colors.placeholder,
+      marginTop: 2,
+    },
+    doubleTapHint: {
+      fontSize: 11,
+      color: theme.colors.placeholder,
+      fontStyle: 'italic',
+      marginTop: 4,
     },
     statusIndicator: {
       width: 14,

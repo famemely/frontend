@@ -3,7 +3,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import AuthScreen from '@/components/auth/AuthScreen';
-import FamilyDashboard from '@/components/family/FamilyDashboard';
+import HomeScreen from '@/components/home/HomeScreen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -37,6 +37,6 @@ export default function Index() {
     return <AuthScreen onAuthSuccess={login} />;
   }
 
-  console.log('📱 Index: User found, showing FamilyDashboard');
-  return <FamilyDashboard />;
+  console.log('📱 Index: User found, showing HomeScreen (Map)');
+  return <HomeScreen />;
 }

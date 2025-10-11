@@ -3,8 +3,11 @@ import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
   Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL ||
-  "http://localhost:3001";
+  "http://192.168.3.105:3001";
+
+console.log("🌐 API Base URL:", API_BASE_URL);
 
 interface LocationUpdate {
   latitude: number;

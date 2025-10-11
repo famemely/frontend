@@ -1,6 +1,6 @@
 /**
  * QuickInviteModal - Simple modal for creating and sharing family invitations
- * Provides quick access to invite functionality without full member management
+ * Redesigned to match auth screen aesthetic
  */
 
 import React, { useState } from 'react';
@@ -15,9 +15,9 @@ import {
   TextInput,
   Share,
   ScrollView,
+  Platform,
 } from 'react-native';
-import { useColorScheme } from 'react-native';
-import { lightTheme, darkTheme } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useFamily } from '@/hooks/useFamily';
 import { FamilyRole } from '@/types/family.types';
 
@@ -25,7 +25,7 @@ interface QuickInviteModalProps {
   visible: boolean;
   familyId: string;
   familyName: string;
-  themeColor: string;
+  themeColor?: string;
   onClose: () => void;
 }
 
@@ -33,11 +33,10 @@ export default function QuickInviteModal({
   visible,
   familyId,
   familyName,
-  themeColor,
+  themeColor = '#053326',
   onClose,
 }: QuickInviteModalProps) {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useTheme();
   const styles = createStyles(theme);
 
   const { createInvite } = useFamily();
@@ -91,29 +90,35 @@ export default function QuickInviteModal({
   };
 
   const roleOptions: { value: FamilyRole; label: string; description: string }[] = [
-    { value: 'member', label: '👤 Member', description: 'Can share location, view board' },
+    { value: 'member', label: 'Member', description: 'Can share location and view family' },
     {
       value: 'child_member',
-      label: '👶 Child Member',
-      description: 'Limited permissions, posts need approval',
+      label: 'Child Member',
+      description: 'Limited permissions for children',
     },
   ];
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={handleClose}>
       <View style={styles.backdrop}>
         <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Invite to {familyName}</Text>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Close Button */}
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+            <Text style={styles.closeIcon}>×</Text>
+          </TouchableOpacity>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false}>
             {!generatedCode ? (
               <>
+                {/* Icon & Title */}
+                <View style={styles.iconContainer}>
+                  <Text style={styles.icon}>✉️</Text>
+                </View>
+                <Text style={styles.title}>Invite to {familyName}</Text>
+                <Text style={styles.subtitle}>
+                  Create an invitation code to share with family members
+                </Text>
+
                 {/* Role Selection */}
                 <Text style={styles.sectionTitle}>Select Role</Text>
                 <View style={styles.roleContainer}>
@@ -122,24 +127,29 @@ export default function QuickInviteModal({
                       key={option.value}
                       style={[
                         styles.roleOption,
-                        selectedRole === option.value && {
-                          ...styles.roleOptionSelected,
-                          borderColor: themeColor,
-                        },
+                        selectedRole === option.value && styles.roleOptionSelected,
                       ]}
                       onPress={() => setSelectedRole(option.value)}
+                      activeOpacity={0.7}
                     >
-                      <Text style={styles.roleLabel}>{option.label}</Text>
+                      <View style={styles.roleContent}>
+                        <Text style={styles.roleLabel}>
+                          {option.value === 'member' ? '👤' : '👶'} {option.label}
+                        </Text>
+                        {selectedRole === option.value && (
+                          <Text style={styles.roleCheck}>✓</Text>
+                        )}
+                      </View>
                       <Text style={styles.roleDescription}>{option.description}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
                 {/* Expiration */}
-                <Text style={styles.sectionTitle}>Expires In (days)</Text>
+                <Text style={styles.sectionTitle}>Expiration (Optional)</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="7 (leave empty for no expiration)"
+                  placeholder="Days until expiration (e.g., 7)"
                   placeholderTextColor={theme.colors.placeholder}
                   value={expiresInDays}
                   onChangeText={setExpiresInDays}
@@ -147,10 +157,10 @@ export default function QuickInviteModal({
                 />
 
                 {/* Max Uses */}
-                <Text style={styles.sectionTitle}>Max Uses (optional)</Text>
+                <Text style={styles.sectionTitle}>Max Uses (Optional)</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Leave empty for unlimited"
+                  placeholder="Number of uses (leave empty for unlimited)"
                   placeholderTextColor={theme.colors.placeholder}
                   value={maxUses}
                   onChangeText={setMaxUses}
@@ -159,77 +169,76 @@ export default function QuickInviteModal({
 
                 {/* Create Button */}
                 <TouchableOpacity
-                  style={[styles.createButton, { backgroundColor: themeColor }]}
+                  style={[styles.createButton, loading && styles.buttonDisabled]}
                   onPress={handleCreateInvite}
                   disabled={loading}
+                  activeOpacity={0.8}
                 >
                   {loading ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.createButtonText}>🎟️ Create Invitation</Text>
+                    <Text style={styles.createButtonText}>Create Invitation</Text>
                   )}
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 {/* Success View */}
-                <View style={styles.successContainer}>
+                <View style={styles.iconContainer}>
                   <Text style={styles.successIcon}>✅</Text>
-                  <Text style={styles.successTitle}>Invitation Created!</Text>
-                  <Text style={styles.successSubtitle}>
-                    Share this code with people you want to invite
-                  </Text>
+                </View>
+                <Text style={styles.title}>Invitation Created!</Text>
+                <Text style={styles.subtitle}>
+                  Share this code with people you want to invite
+                </Text>
 
-                  <View style={[styles.codeContainer, { borderColor: themeColor }]}>
-                    <Text style={styles.codeLabel}>Invitation Code</Text>
-                    <Text style={[styles.code, { color: themeColor }]}>{generatedCode}</Text>
-                  </View>
+                <View style={styles.codeContainer}>
+                  <Text style={styles.codeLabel}>INVITATION CODE</Text>
+                  <Text style={styles.code}>{generatedCode}</Text>
+                  <Text style={styles.codeCopy}>Tap to copy</Text>
+                </View>
 
-                  {/* Info */}
-                  <View style={styles.infoContainer}>
-                    <Text style={styles.infoLabel}>Role: </Text>
+                {/* Info */}
+                <View style={styles.infoBox}>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Role:</Text>
                     <Text style={styles.infoValue}>
                       {roleOptions.find((r) => r.value === selectedRole)?.label}
                     </Text>
                   </View>
 
                   {expiresInDays && (
-                    <View style={styles.infoContainer}>
-                      <Text style={styles.infoLabel}>Expires in: </Text>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Expires in:</Text>
                       <Text style={styles.infoValue}>{expiresInDays} days</Text>
                     </View>
                   )}
 
                   {maxUses && (
-                    <View style={styles.infoContainer}>
-                      <Text style={styles.infoLabel}>Max uses: </Text>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Max uses:</Text>
                       <Text style={styles.infoValue}>{maxUses}</Text>
                     </View>
                   )}
-
-                  {/* Share Button */}
-                  <TouchableOpacity
-                    style={[styles.shareButton, { backgroundColor: themeColor }]}
-                    onPress={handleShare}
-                  >
-                    <Text style={styles.shareButtonText}>📤 Share Invitation</Text>
-                  </TouchableOpacity>
-
-                  {/* Create Another */}
-                  <TouchableOpacity
-                    style={styles.anotherButton}
-                    onPress={() => setGeneratedCode(null)}
-                  >
-                    <Text style={[styles.anotherButtonText, { color: themeColor }]}>
-                      + Create Another Invitation
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Close Button */}
-                  <TouchableOpacity style={styles.doneButton} onPress={handleClose}>
-                    <Text style={styles.doneButtonText}>Done</Text>
-                  </TouchableOpacity>
                 </View>
+
+                {/* Share Button */}
+                <TouchableOpacity
+                  style={styles.shareButton}
+                  onPress={handleShare}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.shareButtonText}>📤 Share Invitation</Text>
+                </TouchableOpacity>
+
+                {/* Create Another */}
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() => setGeneratedCode(null)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.secondaryButtonText}>Create Another</Text>
+                </TouchableOpacity>
               </>
             )}
           </ScrollView>
@@ -244,172 +253,211 @@ const createStyles = (theme: any) =>
     backdrop: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'flex-end',
-    },
-    container: {
-      backgroundColor: theme.colors.surface,
-      borderTopLeftRadius: theme.borderRadius.xl,
-      borderTopRightRadius: theme.borderRadius.xl,
-      maxHeight: '90%',
-      paddingBottom: theme.spacing.xl,
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      justifyContent: 'center',
       alignItems: 'center',
       padding: theme.spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
     },
-    title: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: theme.colors.text,
+    container: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 16,
+      width: '100%',
+      maxWidth: 450,
+      maxHeight: '90%',
+      padding: theme.spacing.xl,
+      position: 'relative',
     },
     closeButton: {
-      padding: theme.spacing.sm,
+      position: 'absolute',
+      top: theme.spacing.md,
+      right: theme.spacing.md,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 10,
     },
-    closeButtonText: {
-      fontSize: 24,
-      color: theme.colors.textSecondary,
+    closeIcon: {
+      fontSize: 32,
+      color: '#053326',
+      fontWeight: '300',
     },
-    content: {
-      padding: theme.spacing.lg,
+    iconContainer: {
+      alignItems: 'center',
+      marginTop: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
+    },
+    icon: {
+      fontSize: 64,
+    },
+    successIcon: {
+      fontSize: 72,
+    },
+    title: {
+      fontSize: 26,
+      fontWeight: '600',
+      color: '#000000',
+      textAlign: 'center',
+      marginBottom: theme.spacing.sm,
+      letterSpacing: 0.3,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: '#666666',
+      textAlign: 'center',
+      marginBottom: theme.spacing.xl,
+      lineHeight: 20,
+      opacity: 0.8,
+      fontWeight: '400',
     },
     sectionTitle: {
-      fontSize: 16,
+      fontSize: 13,
       fontWeight: '600',
-      color: theme.colors.text,
-      marginTop: theme.spacing.md,
+      color: '#666666',
+      marginTop: theme.spacing.lg,
       marginBottom: theme.spacing.sm,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
     },
     roleContainer: {
       gap: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
     },
     roleOption: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: '#FAFAFA',
+      borderWidth: 1,
+      borderColor: '#E5E5E5',
+      borderRadius: 8,
       padding: theme.spacing.md,
-      borderRadius: theme.borderRadius.md,
-      borderWidth: 2,
-      borderColor: theme.colors.border,
     },
     roleOptionSelected: {
-      borderWidth: 2,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: '#F0FDF4',
+      borderColor: '#053326',
+      borderWidth: 1.5,
+    },
+    roleContent: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
     },
     roleLabel: {
       fontSize: 16,
       fontWeight: '600',
-      color: theme.colors.text,
-      marginBottom: 4,
+      color: '#000000',
+    },
+    roleCheck: {
+      fontSize: 16,
+      color: '#053326',
+      fontWeight: '700',
     },
     roleDescription: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
+      fontSize: 13,
+      color: '#666666',
+      fontWeight: '400',
     },
     input: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: '#FFFFFF',
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.borderRadius.md,
+      borderColor: '#053326',
+      borderRadius: 6,
       padding: theme.spacing.md,
       fontSize: 16,
-      color: theme.colors.text,
+      color: '#000000',
       marginBottom: theme.spacing.sm,
+      fontWeight: '400',
+      opacity: 0.7,
     },
     createButton: {
-      marginTop: theme.spacing.xl,
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.lg,
-      borderRadius: theme.borderRadius.md,
+      backgroundColor: '#053326',
+      borderRadius: 8,
+      padding: theme.spacing.md + 2,
       alignItems: 'center',
-      justifyContent: 'center',
+      marginTop: theme.spacing.xl,
+      marginBottom: theme.spacing.md,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
     },
     createButtonText: {
       color: '#FFFFFF',
-      fontSize: 18,
-      fontWeight: '600',
-    },
-    successContainer: {
-      alignItems: 'center',
-      paddingVertical: theme.spacing.lg,
-    },
-    successIcon: {
-      fontSize: 64,
-      marginBottom: theme.spacing.md,
-    },
-    successTitle: {
-      fontSize: 24,
-      fontWeight: '600',
-      color: theme.colors.text,
-      marginBottom: theme.spacing.xs,
-    },
-    successSubtitle: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      textAlign: 'center',
-      marginBottom: theme.spacing.xl,
+      fontSize: 16,
+      fontWeight: '500',
+      letterSpacing: 0.3,
     },
     codeContainer: {
-      backgroundColor: theme.colors.background,
-      padding: theme.spacing.lg,
-      borderRadius: theme.borderRadius.lg,
+      backgroundColor: '#FAFAFA',
       borderWidth: 2,
-      marginBottom: theme.spacing.lg,
-      width: '100%',
+      borderColor: '#053326',
+      borderRadius: 12,
+      padding: theme.spacing.xl,
+      marginVertical: theme.spacing.xl,
       alignItems: 'center',
     },
     codeLabel: {
-      fontSize: 12,
-      color: theme.colors.textSecondary,
-      textTransform: 'uppercase',
-      marginBottom: theme.spacing.xs,
+      fontSize: 11,
+      color: '#666666',
+      fontWeight: '600',
+      letterSpacing: 1,
+      marginBottom: theme.spacing.sm,
     },
     code: {
-      fontSize: 28,
+      fontSize: 32,
       fontWeight: '700',
-      letterSpacing: 2,
+      color: '#053326',
+      letterSpacing: 4,
+      marginBottom: theme.spacing.xs,
     },
-    infoContainer: {
+    codeCopy: {
+      fontSize: 12,
+      color: '#666666',
+      opacity: 0.7,
+      fontWeight: '400',
+    },
+    infoBox: {
+      backgroundColor: '#FAFAFA',
+      borderRadius: 8,
+      padding: theme.spacing.md,
+      marginBottom: theme.spacing.xl,
+    },
+    infoRow: {
       flexDirection: 'row',
+      justifyContent: 'space-between',
       marginBottom: theme.spacing.xs,
     },
     infoLabel: {
       fontSize: 14,
-      color: theme.colors.textSecondary,
+      color: '#666666',
+      fontWeight: '400',
     },
     infoValue: {
       fontSize: 14,
       fontWeight: '600',
-      color: theme.colors.text,
+      color: '#000000',
     },
     shareButton: {
-      marginTop: theme.spacing.xl,
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.xl,
-      borderRadius: theme.borderRadius.md,
-      width: '100%',
+      backgroundColor: '#053326',
+      borderRadius: 8,
+      padding: theme.spacing.md + 2,
       alignItems: 'center',
+      marginBottom: theme.spacing.md,
     },
     shareButtonText: {
       color: '#FFFFFF',
-      fontSize: 18,
-      fontWeight: '600',
-    },
-    anotherButton: {
-      marginTop: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
-    },
-    anotherButtonText: {
       fontSize: 16,
       fontWeight: '500',
+      letterSpacing: 0.3,
     },
-    doneButton: {
-      marginTop: theme.spacing.lg,
-      paddingVertical: theme.spacing.sm,
+    secondaryButton: {
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: '#053326',
+      borderRadius: 8,
+      padding: theme.spacing.md,
+      alignItems: 'center',
     },
-    doneButtonText: {
+    secondaryButtonText: {
+      color: '#053326',
       fontSize: 16,
-      color: theme.colors.textSecondary,
+      fontWeight: '500',
     },
   });

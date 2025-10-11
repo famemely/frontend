@@ -1,5 +1,6 @@
 /**
  * JoinFamilyModal - Modal for joining a family using an invite code
+ * Redesigned to match auth screen aesthetic
  */
 
 import React, { useState } from 'react';
@@ -12,9 +13,9 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
-import { useColorScheme } from 'react-native';
-import { lightTheme, darkTheme } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useFamily } from '@/hooks/useFamily';
 
 interface JoinFamilyModalProps {
@@ -28,8 +29,7 @@ export default function JoinFamilyModal({
   onClose,
   onSuccess,
 }: JoinFamilyModalProps) {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useTheme();
   const styles = createStyles(theme);
 
   const { joinFamily } = useFamily();
@@ -73,30 +73,30 @@ export default function JoinFamilyModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={handleClose}>
       <View style={styles.backdrop}>
         <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Join a Family</Text>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
+          {/* Close Button */}
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+            <Text style={styles.closeIcon}>×</Text>
+          </TouchableOpacity>
+
+          {/* Icon */}
+          <View style={styles.iconContainer}>
+            <Text style={styles.icon}>🔗</Text>
           </View>
 
-          {/* Content */}
-          <View style={styles.content}>
-            <View style={styles.iconContainer}>
-              <Text style={styles.icon}>🎟️</Text>
-            </View>
+          {/* Title */}
+          <Text style={styles.title}>Join a Family</Text>
+          <Text style={styles.subtitle}>
+            Enter the invitation code you received from a family member
+          </Text>
 
-            <Text style={styles.description}>
-              Enter the invitation code you received to join a family
-            </Text>
-
+          {/* Input */}
+          <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              placeholder="Enter invitation code"
+              placeholder="INVITATION CODE"
               placeholderTextColor={theme.colors.placeholder}
               value={inviteCode}
               onChangeText={setInviteCode}
@@ -104,33 +104,30 @@ export default function JoinFamilyModal({
               autoCorrect={false}
               maxLength={20}
             />
-
-            <Text style={styles.hint}>
-              💡 Tip: The code was shared with you by a family member
-            </Text>
-
-            {/* Join Button */}
-            <TouchableOpacity
-              style={[
-                styles.joinButton,
-                { backgroundColor: theme.colors.primary },
-                loading && styles.joinButtonDisabled,
-              ]}
-              onPress={handleJoin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.joinButtonText}>Join Family</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Cancel Button */}
-            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
           </View>
+
+          <Text style={styles.hint}>
+            💡 The code is case-sensitive and looks like: ABC123XYZ
+          </Text>
+
+          {/* Join Button */}
+          <TouchableOpacity
+            style={[styles.joinButton, loading && styles.joinButtonDisabled]}
+            onPress={handleJoin}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.joinButtonText}>Join Family</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Cancel Button */}
+          <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -147,76 +144,82 @@ const createStyles = (theme: any) =>
       padding: theme.spacing.lg,
     },
     container: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.borderRadius.xl,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 16,
       width: '100%',
       maxWidth: 400,
-      overflow: 'hidden',
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: theme.spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    title: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: theme.colors.text,
+      padding: theme.spacing.xl,
+      position: 'relative',
     },
     closeButton: {
-      padding: theme.spacing.sm,
+      position: 'absolute',
+      top: theme.spacing.md,
+      right: theme.spacing.md,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 10,
     },
-    closeButtonText: {
-      fontSize: 24,
-      color: theme.colors.textSecondary,
-    },
-    content: {
-      padding: theme.spacing.xl,
+    closeIcon: {
+      fontSize: 32,
+      color: '#053326',
+      fontWeight: '300',
     },
     iconContainer: {
       alignItems: 'center',
+      marginTop: theme.spacing.lg,
       marginBottom: theme.spacing.md,
     },
     icon: {
-      fontSize: 64,
+      fontSize: 72,
     },
-    description: {
-      fontSize: 16,
-      color: theme.colors.text,
+    title: {
+      fontSize: 28,
+      fontWeight: '600',
+      color: '#000000',
+      textAlign: 'center',
+      marginBottom: theme.spacing.sm,
+      letterSpacing: 0.3,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: '#666666',
       textAlign: 'center',
       marginBottom: theme.spacing.xl,
-      lineHeight: 24,
+      lineHeight: 20,
+      opacity: 0.8,
+      fontWeight: '400',
+    },
+    inputWrapper: {
+      marginBottom: theme.spacing.md,
     },
     input: {
-      backgroundColor: theme.colors.background,
-      borderWidth: 2,
-      borderColor: theme.colors.border,
-      borderRadius: theme.borderRadius.md,
+      backgroundColor: '#FFFFFF',
+      borderColor: '#053326',
+      borderWidth: 1,
+      borderRadius: 6,
       padding: theme.spacing.md,
       fontSize: 18,
-      color: theme.colors.text,
+      color: '#000000',
       textAlign: 'center',
       fontWeight: '600',
       letterSpacing: 2,
       textTransform: 'uppercase',
     },
     hint: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
+      fontSize: 12,
+      color: '#666666',
       textAlign: 'center',
-      marginTop: theme.spacing.md,
       marginBottom: theme.spacing.xl,
-      fontStyle: 'italic',
+      opacity: 0.7,
+      fontWeight: '400',
     },
     joinButton: {
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.xl,
-      borderRadius: theme.borderRadius.md,
+      backgroundColor: '#053326',
+      borderRadius: 8,
+      padding: theme.spacing.md + 2,
       alignItems: 'center',
-      justifyContent: 'center',
       marginBottom: theme.spacing.md,
     },
     joinButtonDisabled: {
@@ -224,15 +227,21 @@ const createStyles = (theme: any) =>
     },
     joinButtonText: {
       color: '#FFFFFF',
-      fontSize: 18,
-      fontWeight: '600',
+      fontSize: 16,
+      fontWeight: '500',
+      letterSpacing: 0.3,
     },
     cancelButton: {
-      paddingVertical: theme.spacing.sm,
+      backgroundColor: 'transparent',
+      borderColor: '#053326',
+      borderWidth: 1,
+      borderRadius: 8,
+      padding: theme.spacing.md,
       alignItems: 'center',
     },
     cancelButtonText: {
+      color: '#053326',
       fontSize: 16,
-      color: theme.colors.textSecondary,
+      fontWeight: '500',
     },
   });

@@ -40,6 +40,10 @@ interface UseLocationReturn {
   // Data
   memberLocations: Map<string, LocationUpdate>;
   memberPresence: Map<string, PresenceUpdate>;
+  memberGhost: Map<
+    string,
+    { enabled: boolean; scope: "global" | "family" | null }
+  >;
   getMemberLocation: (userId: string) => LocationUpdate | undefined;
   getMemberPresence: (userId: string) => PresenceUpdate | undefined;
   refreshLocations: () => Promise<void>;
@@ -55,6 +59,9 @@ export function useLocation(familyId: string | null): UseLocationReturn {
   >(new Map());
   const [memberPresence, setMemberPresence] = useState<
     Map<string, PresenceUpdate>
+  >(new Map());
+  const [memberGhost, setMemberGhost] = useState<
+    Map<string, { enabled: boolean; scope: "global" | "family" | null }>
   >(new Map());
 
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -102,12 +109,27 @@ export function useLocation(familyId: string | null): UseLocationReturn {
       }
     };
 
+    const handleGhostUpdate = (update: any) => {
+      // update can be global or family-scoped; reflect only when relevant family
+      if (update.scope === "global" || update.family_id === familyId) {
+        setMemberGhost((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(update.user_id, {
+            enabled: !!update.enabled,
+            scope: update.scope,
+          });
+          return newMap;
+        });
+      }
+    };
+
     // Register event listeners
     websocketService.on("connect", handleConnect);
     websocketService.on("disconnect", handleDisconnect);
     websocketService.on("error", handleError);
     websocketService.on("location_update", handleLocationUpdate);
     websocketService.on("presence_update", handlePresenceUpdate);
+    websocketService.on("ghost_mode", handleGhostUpdate);
 
     // Check initial connection state
     setIsConnected(websocketService.isConnected());
@@ -119,6 +141,7 @@ export function useLocation(familyId: string | null): UseLocationReturn {
       websocketService.off("error", handleError);
       websocketService.off("location_update", handleLocationUpdate);
       websocketService.off("presence_update", handlePresenceUpdate);
+      websocketService.off("ghost_mode", handleGhostUpdate);
     };
   }, [familyId]);
 
@@ -265,6 +288,7 @@ export function useLocation(familyId: string | null): UseLocationReturn {
     checkIn,
     memberLocations,
     memberPresence,
+    memberGhost,
     getMemberLocation,
     getMemberPresence,
     refreshLocations,
