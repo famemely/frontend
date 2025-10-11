@@ -1,5 +1,5 @@
 import Constants from "expo-constants";
-import { supabase } from "./auth.service";
+import { supabase } from "./supabase.client";
 
 // Use the OAuth 2.0 Web Client ID from Supabase configuration
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;

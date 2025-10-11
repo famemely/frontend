@@ -13,6 +13,17 @@
       "bundleIdentifier": "com.famemely.app"
     },
     "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "ACCESS_BACKGROUND_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDgIK95RJpTW49O3tYRscAzZi-tlEQS1tM"
+        }
+      },
       "package": "com.famemely.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -49,7 +60,21 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Famemely to use your location to share with family members.",
+          "locationAlwaysPermission": "Allow Famemely to use your location even when the app is in the background.",
+          "locationWhenInUsePermission": "Allow Famemely to use your location while you are using the app.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-task-manager"
     ],
     "experiments": {
       "typedRoutes": true,
