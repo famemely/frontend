@@ -13,6 +13,11 @@ export default function RootLayout() {
       <AuthProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
+          <Stack.Screen name="Dashboard" />
+          <Stack.Screen name="FamilyMap" options={{
+            presentation: 'card',
+            animation: 'slide_from_right'
+          }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
         <StatusBar style="auto" />

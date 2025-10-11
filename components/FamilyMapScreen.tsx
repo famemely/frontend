@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useRef } from 'react';
 import {
   Animated,
   Dimensions,
@@ -7,8 +7,10 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Image
+  Platform,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import { useRouter } from 'expo-router';
 import { MAP_CONFIG, MAP_TABS, MapTab } from '../constants/maps.config';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -16,86 +18,116 @@ import { useDrawerAnimation } from '../hooks/useDrawerAnimation';
 import { useFamily } from '../hooks/useFamily';
 import { FamilyMember, FamilyWithMembers } from '../types/family.types';
 import Sidebar from './Sidebar';
-import { useNavigation } from '@react-navigation/native';
 import LocationTrackingControl from './location/LocationTrackingControl';
 
 const { height } = Dimensions.get('window');
 
-// OpenStreetMap Static Map URL generator
-const getStaticMapUrl = (lat: number, lon: number, zoom: number = 13, width: number = 800, height: number = 600) => {
-  // Using OpenStreetMap Static Map API via staticmap.openstreetmap.de
-  return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lon}&zoom=${zoom}&size=${width}x${height}&maptype=mapnik`;
-};
+// Determine map provider - use GOOGLE on Android if available, otherwise default
+const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 
 export default function FamilyMapScreen() {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const navigation = useNavigation<any>();
-  
+  const router = useRouter();
+  const mapRef = useRef<MapView>(null);
+
   // Get real family data from useFamily hook
   const { families, currentFamily, currentFamilyId, loading, error } = useFamily();
-  
+
   // State management
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [bottomBarExpanded, setBottomBarExpanded] = useState(false);
   const [selectedTab, setSelectedTab] = useState<MapTab>('all');
   const [selectedMember, setSelectedMember] = useState<string | number | null>(null);
-  const [mapCenter, setMapCenter] = useState({ lat: 37.7879, lon: -122.4074 }); // San Francisco
+  const [mapReady, setMapReady] = useState(false);
+  const [mapRegion, setMapRegion] = useState<Region>({
+    latitude: 37.7879,
+    longitude: -122.4074,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
 
   // Use custom drawer animation hook
   const { slideAnim, translateX } = useDrawerAnimation(menuOpen);
 
   console.log('🏠 FamilyMapScreen: Current families:', families?.length || 0);
   console.log('🏠 FamilyMapScreen: Current family ID:', currentFamilyId);
+  console.log('🗺️ Map Ready:', mapReady);
 
   // Sample family members data (TODO: Fetch from API)
   const familyMembers = useMemo(() => [
-    { id: '1', user: { name: 'Mom' }, color: '#FF6B6B', status: 'active', latitude: 37.78825, longitude: -122.4324 },
-    { id: '2', user: { name: 'Dad' }, color: '#4ECDC4', status: 'active', latitude: 37.78925, longitude: -122.4314 },
-    { id: '3', user: { name: 'Sarah' }, color: '#FFE66D', status: 'idle', latitude: 37.78725, longitude: -122.4334 },
-    { id: '4', user: { name: 'Jake' }, color: '#95E1D3', status: 'active', latitude: 37.78625, longitude: -122.4344 },
-  ], []) as any[];
+    { id: '1', name: 'Mom', color: '#FF6B6B', status: 'active', latitude: 37.78825, longitude: -122.4324 },
+    { id: '2', name: 'Dad', color: '#4ECDC4', status: 'active', latitude: 37.78925, longitude: -122.4314 },
+    { id: '3', name: 'Sarah', color: '#FFE66D', status: 'idle', latitude: 37.78725, longitude: -122.4334 },
+    { id: '4', name: 'Jake', color: '#95E1D3', status: 'active', latitude: 37.78625, longitude: -122.4344 },
+  ], []);
 
   const safeMembers = familyMembers.filter(m => !!m && m.id != null);
 
-  // Generate static map URL
-  const { width: screenWidth } = Dimensions.get('window');
-  const staticMapUrl = getStaticMapUrl(mapCenter.lat, mapCenter.lon, 13, Math.floor(screenWidth * 2), Math.floor(height * 2));
+  // Focus on a specific member
+  const focusOnMember = useCallback((member: typeof familyMembers[0]) => {
+    if (mapRef.current && member.latitude && member.longitude) {
+      mapRef.current.animateToRegion({
+        latitude: member.latitude,
+        longitude: member.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 1000);
+    }
+  }, []);
 
   const styles = createStyles(theme);
 
   return (
     <View style={styles.container}>
-      {/* Map Area with OpenStreetMap */}
+      {/* Map Area with Google Maps */}
       <View style={styles.mapContainer}>
-        {/* Static OpenStreetMap Background */}
-        <View style={styles.staticMapContainer}>
-          <Image
-            source={{ uri: staticMapUrl }}
-            style={styles.staticMap}
-            resizeMode="cover"
-          />
-          
-          {/* Family Member Markers Overlay */}
-          <View style={styles.markersContainer}>
-            <View style={styles.mapOverlay}>
-              <Text style={styles.mapOverlayTitle}>🗺️ Family Locations</Text>
-              <ScrollView style={styles.membersList}>
-                {safeMembers.map((member) => (
-                  <View key={member.id} style={styles.memberItem}>
-                    <View style={[styles.memberDot, { backgroundColor: member.color }]} />
-                    <Text style={styles.memberName}>{member.user?.name}</Text>
-                    <Text style={styles.memberStatus}>
-                      {member.status === 'active' ? '🟢 Active' : '🟡 Idle'}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
+        {!mapReady && (
+          <View style={styles.mapLoadingOverlay}>
+            <Text style={styles.mapLoadingText}>Loading Map...</Text>
           </View>
-        </View>
-        
+        )}
+        <MapView
+          ref={mapRef}
+          provider={MAP_PROVIDER}
+          style={styles.map}
+          initialRegion={mapRegion}
+          onRegionChangeComplete={setMapRegion}
+          showsUserLocation={false}
+          showsMyLocationButton={false}
+          showsCompass={true}
+          showsScale={true}
+          loadingEnabled={true}
+          mapType="standard"
+          onMapReady={() => {
+            console.log('✅ Map is ready!');
+            setMapReady(true);
+          }}
+        >
+          {/* Family Member Markers */}
+          {safeMembers.map((member) => (
+            <Marker
+              key={member.id}
+              coordinate={{
+                latitude: member.latitude,
+                longitude: member.longitude,
+              }}
+              title={member.name}
+              description={member.status === 'active' ? 'Active now' : 'Idle'}
+              pinColor={member.color}
+              onPress={() => {
+                setSelectedMember(member.id);
+                focusOnMember(member);
+              }}
+            >
+              <View style={[styles.customMarker, { backgroundColor: member.color }]}>
+                <Text style={styles.markerText}>👤</Text>
+              </View>
+            </Marker>
+          ))}
+        </MapView>
+
         {/* Location Tracking Control Overlay */}
         <View style={styles.locationControlOverlay}>
           <LocationTrackingControl familyId={currentFamilyId} />
@@ -106,12 +138,20 @@ export default function FamilyMapScreen() {
       <TouchableOpacity
         style={styles.createFamilyButton}
         accessibilityLabel="Create new family"
-        onPress={() => navigation.navigate('modal', { view: 'familyManagement', openCreate: '1' })}
+        onPress={() => router.push('/modal?view=familyManagement&openCreate=1')}
       >
         <Text style={styles.createFamilyIcon}>＋</Text>
       </TouchableOpacity>
 
-      {/* Top Left - Hamburger Menu */}
+      {/* Back Button - Top Left */}
+      <TouchableOpacity
+        onPress={() => router.back()}
+        style={styles.backButton}
+      >
+        <Text style={styles.iconText}>←</Text>
+      </TouchableOpacity>
+
+      {/* Top Left - Hamburger Menu (moved right to make room for back button) */}
       <TouchableOpacity
         onPress={() => setMenuOpen(!menuOpen)}
         style={styles.hamburgerButton}
@@ -121,15 +161,15 @@ export default function FamilyMapScreen() {
 
       {/* Sidebar Drawer - Always rendered, animated in/out */}
       <View style={styles.drawerContainer} pointerEvents={menuOpen ? 'auto' : 'none'}>
-        <Animated.View 
+        <Animated.View
           style={[
             styles.drawerContent,
             { transform: [{ translateX }] }
           ]}
         >
           <Sidebar
-            navigation={navigation}
-            userName={user?.fullName || user?.username || 'User'}
+            navigation={null}
+            userName={user?.fullName || user?.email || 'User'}
             profileImage={null}
             families={families}
             currentFamilyId={currentFamilyId || undefined}
@@ -143,7 +183,7 @@ export default function FamilyMapScreen() {
           ]}
           pointerEvents={menuOpen ? 'auto' : 'none'}
         >
-          <TouchableOpacity 
+          <TouchableOpacity
             style={{ flex: 1 }}
             activeOpacity={1}
             onPress={() => setMenuOpen(false)}
@@ -163,7 +203,7 @@ export default function FamilyMapScreen() {
             </TouchableOpacity>
           </View>
         )}
-        
+
         <TouchableOpacity
           onPress={() => setActionsOpen(!actionsOpen)}
           style={styles.actionButton}
@@ -218,12 +258,15 @@ export default function FamilyMapScreen() {
         {/* Family Members Section */}
         <View style={styles.membersSection}>
           <Text style={styles.sectionTitle}>FAMILY MEMBERS</Text>
-          
+
           <ScrollView showsVerticalScrollIndicator={false}>
             {familyMembers.map((member) => (
               <TouchableOpacity
                 key={member.id}
-                onPress={() => setSelectedMember(member.id)}
+                onPress={() => {
+                  setSelectedMember(member.id);
+                  focusOnMember(member);
+                }}
                 style={[
                   styles.memberCard,
                   selectedMember === member.id ? styles.memberCardSelected : styles.memberCardDefault
@@ -237,7 +280,7 @@ export default function FamilyMapScreen() {
                 >
                   <Text style={styles.memberAvatarText}>👤</Text>
                 </View>
-                
+
                 <View style={styles.memberInfo}>
                   <Text style={styles.memberName}>{member.name}</Text>
                   <Text style={styles.memberStatus}>
@@ -261,14 +304,14 @@ export default function FamilyMapScreen() {
       {currentFamily ? (
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: currentFamily.theme_color || theme.colors.primary }]}
-          onPress={() => navigation.navigate('modal', { view: 'familyManagement' })}
+          onPress={() => router.push('/modal?view=familyManagement')}
         >
           <Text style={styles.fabText}>👥</Text>
         </TouchableOpacity>
       ) : families && families.length === 0 ? (
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-          onPress={() => navigation.navigate('modal', { view: 'familyManagement', openCreate: '1' })}
+          onPress={() => router.push('/modal?view=familyManagement&openCreate=1')}
         >
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
@@ -277,117 +320,84 @@ export default function FamilyMapScreen() {
   );
 }
 
-const createStyles = (theme: any) =>
-  StyleSheet.create({
+const createStyles = (theme: any) => {
+  const tabVerticalPadding = theme.spacing.sm + 2;
+  const accentWithOpacity = theme.colors.accent + '10';
+  const fabBottom = theme.spacing.xl + 60;
+
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
     mapContainer: {
       flex: 1,
-      backgroundColor: theme.colors.muted,
+      backgroundColor: '#FFFFFF',
+      overflow: 'hidden',
     },
-    map: { width: '100%', height: '100%' },
+    map: {
+      ...StyleSheet.absoluteFillObject,
+      width: '100%',
+      height: '100%',
+    },
+    mapLoadingOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: theme.colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1,
+    },
+    mapLoadingText: {
+      fontSize: 16,
+      color: theme.colors.text,
+      fontWeight: '500',
+    },
+    customMarker: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 3,
+      borderColor: '#fff',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 5,
+    },
+    markerText: {
+      fontSize: 20,
+    },
     locationControlOverlay: {
       position: 'absolute',
       top: theme.spacing.md,
       right: theme.spacing.md,
       zIndex: 10,
     },
-    staticMapContainer: {
-      flex: 1,
-      position: 'relative',
-    },
-    staticMap: {
-      width: '100%',
-      height: '100%',
-    },
-    markersContainer: {
+    hamburgerButton: {
       position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      pointerEvents: 'none',
-    },
-    mapOverlay: {
-      position: 'absolute',
-      bottom: theme.spacing.lg,
-      left: theme.spacing.md,
-      right: theme.spacing.md,
+      top: 56,
+      left: 72, // Moved right to make room for back button
+      width: 52,
+      height: 52,
       backgroundColor: theme.colors.card,
-      borderRadius: theme.borderRadius.lg,
-      padding: theme.spacing.md,
-      maxHeight: 200,
+      borderRadius: theme.borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
       shadowColor: theme.colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      elevation: 5,
-      pointerEvents: 'auto',
-    },
-    mapOverlayTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.colors.text,
-      marginBottom: theme.spacing.sm,
-    },
-    membersList: {
-      maxHeight: 120,
-    },
-    memberItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: theme.spacing.xs,
-      gap: theme.spacing.sm,
-    },
-    memberDot: {
-      width: 12,
-      height: 12,
-      borderRadius: 6,
-      borderWidth: 2,
-      borderColor: theme.colors.card,
-    },
-    memberStatus: {
-      fontSize: 12,
-      color: theme.colors.textSecondary,
-      marginLeft: 'auto',
-    },
-    mapDisabled: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    mapDisabledText: {
-      color: theme.colors.textSecondary,
-      opacity: 0.7,
-    },
-    mapPlaceholder: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: theme.spacing.lg,
-      backgroundColor: theme.colors.surface,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 6,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: theme.borderRadius.md,
-      margin: theme.spacing.md,
     },
-    mapPlaceholderTitle: {
-      fontSize: 18,
-      fontWeight: '400',
-      color: theme.colors.text,
-      marginBottom: theme.spacing.sm,
-      letterSpacing: 0.4,
-    },
-    mapPlaceholderSubtitle: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      textAlign: 'center',
-      opacity: 0.75,
-      lineHeight: 20,
-    },
-    hamburgerButton: {
+    backButton: {
       position: 'absolute',
       top: 56,
       left: theme.spacing.md,
@@ -493,7 +503,7 @@ const createStyles = (theme: any) =>
     },
     tab: {
       paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.sm + 2,
+      paddingVertical: tabVerticalPadding,
       borderRadius: theme.borderRadius.md,
     },
     tabActive: {
@@ -543,7 +553,7 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.colors.surface,
     },
     memberCardSelected: {
-      backgroundColor: theme.colors.accent + '10', // 10% opacity
+      backgroundColor: accentWithOpacity, // 10% opacity
       borderWidth: 1.5,
       borderColor: theme.colors.accent,
     },
@@ -568,6 +578,10 @@ const createStyles = (theme: any) =>
       color: theme.colors.text,
       marginBottom: 2,
       letterSpacing: 0.2,
+    },
+    memberStatus: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
     },
     statusIndicator: {
       width: 14,
@@ -609,7 +623,7 @@ const createStyles = (theme: any) =>
     fab: {
       position: 'absolute',
       right: theme.spacing.lg,
-      bottom: theme.spacing.xl + 60, // Above any bottom navigation
+      bottom: fabBottom, // Above any bottom navigation
       width: 60,
       height: 60,
       borderRadius: 30,
@@ -626,3 +640,4 @@ const createStyles = (theme: any) =>
       color: '#FFFFFF',
     },
   });
+};
