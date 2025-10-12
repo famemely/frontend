@@ -145,6 +145,57 @@ export default function HomeScreen() {
     return selectedTab === 'ALL' ? allMembers : currentFamilyMembers;
   }, [selectedTab, allMembers, currentFamilyMembers]);
 
+  // Show ALL members in list even if they don't have a location
+  const listMembers = useMemo(() => {
+    if (selectedTab === 'ALL') {
+      const map = new Map<string, any>();
+      let colorIndex = 0;
+      families.forEach((fam) => {
+        fam.members?.forEach((m: any) => {
+          const userId = m.user?.id || m.user_id;
+          if (!userId || map.has(userId)) return;
+          const location = memberLocations.get(userId);
+          const presence = memberPresence.get(userId);
+          const isOnline = presence?.status === 'online';
+          map.set(userId, {
+            id: userId,
+            name: m.user?.name || m.user?.username || (userId?.split('-')[0] || 'Member'),
+            color: MEMBER_COLORS[colorIndex % MEMBER_COLORS.length],
+            status: isOnline ? 'online' : 'offline',
+            latitude: location?.latitude,
+            longitude: location?.longitude,
+            accuracy: location?.accuracy,
+            timestamp: location?.timestamp,
+            batteryLevel: location?.batteryLevel,
+          });
+          colorIndex++;
+        });
+      });
+      return Array.from(map.values());
+    }
+
+    const fam = families.find((f) => f.id === selectedTab) || (currentFamilyId ? families.find(f => f.id === currentFamilyId) : undefined);
+    if (!fam) return [] as any[];
+    let colorIndex = 0;
+    return (fam.members || []).map((m: any) => {
+      const userId = m.user?.id || m.user_id;
+      const location = memberLocations.get(userId);
+      const presence = memberPresence.get(userId);
+      const isOnline = presence?.status === 'online';
+      return {
+        id: userId,
+        name: m.user?.name || m.user?.username || (userId?.split('-')[0] || 'Member'),
+        color: MEMBER_COLORS[colorIndex++ % MEMBER_COLORS.length],
+        status: isOnline ? 'online' : 'offline',
+        latitude: location?.latitude,
+        longitude: location?.longitude,
+        accuracy: location?.accuracy,
+        timestamp: location?.timestamp,
+        batteryLevel: location?.batteryLevel,
+      };
+    });
+  }, [selectedTab, families, memberLocations, memberPresence, currentFamilyId]);
+
   // Center map on members when ready
   useEffect(() => {
     if (mapReady && familyMembers.length > 0 && mapRef.current) {
@@ -171,14 +222,36 @@ export default function HomeScreen() {
 
   // Ensure websocket connects
   useEffect(() => {
-    connect().catch(() => {});
+    connect()
+      .then(async () => {
+        try {
+          if (currentFamilyId) {
+            const { backgroundLocationService } = await import('@/services/background-location.service');
+            console.log('[HomeScreen] 📤 Immediate check-in on mount', { currentFamilyId });
+            await backgroundLocationService.checkIn(currentFamilyId);
+          }
+        } catch (e) {
+          console.warn('[HomeScreen] Immediate check-in failed', e);
+        }
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reconnect or rejoin when family changes
   useEffect(() => {
     if (currentFamilyId) {
-      connect().catch(() => {});
+      connect()
+        .then(async () => {
+          try {
+            const { backgroundLocationService } = await import('@/services/background-location.service');
+            console.log('[HomeScreen] 📤 Immediate check-in on family change', { currentFamilyId });
+            await backgroundLocationService.checkIn(currentFamilyId);
+          } catch (e) {
+            console.warn('[HomeScreen] Immediate check-in on family change failed', e);
+          }
+        })
+        .catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFamilyId]);
@@ -226,7 +299,7 @@ export default function HomeScreen() {
 
   const focusOnMember = (member: typeof familyMembers[0]) => {
     setSelectedMember(member.id);
-    if (mapRef.current) {
+    if (mapRef.current && member.latitude != null && member.longitude != null) {
       mapRef.current.animateToRegion({
         latitude: member.latitude,
         longitude: member.longitude,
@@ -349,19 +422,17 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Member List */}
+        {/* Member List (all members, regardless of location) */}
         <ScrollView
           style={styles.memberList}
           contentContainerStyle={styles.memberListContent}
           showsVerticalScrollIndicator={false}
         >
-          {familyMembers.length === 0 ? (
+          {listMembers.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>👨‍👩‍👧‍👦</Text>
-              <Text style={styles.emptyText}>No family members yet</Text>
-              <Text style={styles.emptySubtext}>
-                Invite your family to start sharing locations
-              </Text>
+              <Text style={styles.emptyText}>No members to show</Text>
+              <Text style={styles.emptySubtext}>Create or join a family to get started</Text>
               <TouchableOpacity
                 style={styles.inviteButton}
                 onPress={() => setShowInviteModal(true)}
@@ -370,7 +441,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            familyMembers.map((member) => (
+            listMembers.map((member) => (
               <TouchableOpacity
                 key={member.id}
                 style={[
@@ -397,11 +468,11 @@ export default function HomeScreen() {
                   
                   <View style={styles.memberDetails}>
                     <Text style={styles.memberDetailText}>
-                      🔋 {member.batteryLevel ? `${Math.round(member.batteryLevel * 100)}%` : 'N/A'}
+                      🔋 {typeof member.batteryLevel === 'number' ? `${Math.round(member.batteryLevel)}%` : 'N/A'}
                     </Text>
                     <Text style={styles.memberDetailDot}>•</Text>
                     <Text style={styles.memberDetailText}>
-                      {member.timestamp ? formatTime(member.timestamp) : 'Unknown'}
+                      {member.timestamp ? formatTime(member.timestamp) : 'No location yet'}
                     </Text>
                   </View>
                 </View>

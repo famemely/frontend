@@ -83,6 +83,24 @@ export default function FamilyMapScreen() {
     }
   }, [currentFamilyId, isConnected]);
 
+  // Send one immediate location when the screen is shown and we have a family
+  useEffect(() => {
+    let didSend = false;
+    const sendImmediate = async () => {
+      try {
+        if (!didSend && currentFamilyId) {
+          console.log('📤 FamilyMapScreen: sending immediate check-in', { currentFamilyId });
+          const { backgroundLocationService } = await import('../services/background-location.service');
+          await backgroundLocationService.checkIn(currentFamilyId);
+          didSend = true;
+        }
+      } catch (e) {
+        console.warn('FamilyMapScreen: immediate check-in failed', e);
+      }
+    };
+    sendImmediate();
+  }, [currentFamilyId]);
+
   // Ensure a family is selected once families/currentFamilyId are loaded
   useEffect(() => {
     if (!selectedFamilyId) {
@@ -340,7 +358,8 @@ export default function FamilyMapScreen() {
             >
               {families?.map((family, index) => {
                 const isSelected = selectedFamilyId === family.id;
-                const familyMembers = family.members?.filter(m => m.user_id !== user?.id) || [];
+                // Show ALL members for tab badge (no filtering)
+                const familyMembers = family.members || [];
                 
                 return (
                   <TouchableOpacity
@@ -399,28 +418,25 @@ export default function FamilyMapScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Family Members List - Filtered by Selected Family */}
+        {/* Family Members List - Show ALL members of selected family */}
         <View style={styles.membersSection}>
           {(() => {
             const selectedFamily = families?.find(f => f.id === selectedFamilyId);
-            const filteredMembers = selectedFamily?.members?.filter(m => m.user_id !== user?.id) || [];
+            // No filter: include current user as well
+            const allMembers = selectedFamily?.members || [];
             
             return (
               <>
                 <Text style={styles.sectionTitle}>
-                  {selectedFamily?.name.toUpperCase() || 'FAMILY'} MEMBERS ({filteredMembers.length})
+                  {selectedFamily?.name.toUpperCase() || 'FAMILY'} MEMBERS ({allMembers.length})
                   {isConnected && <Text style={styles.statusOnline}> • CONNECTED</Text>}
                 </Text>
 
                 <ScrollView showsVerticalScrollIndicator={false}>
-                  {filteredMembers.length === 0 ? (
+                  {allMembers.length === 0 ? (
                     <View style={styles.emptyState}>
-                      <Text style={styles.emptyStateText}>
-                        No other members in this family
-                      </Text>
-                      <Text style={styles.emptyStateSubtext}>
-                        Invite members to see their locations
-                      </Text>
+                      <Text style={styles.emptyStateText}>No members in this family</Text>
+                      <Text style={styles.emptyStateSubtext}>Invite members to get started</Text>
                       <TouchableOpacity
                         style={styles.inviteButton}
                         onPress={() => router.push('/invitations' as any)}
@@ -429,7 +445,7 @@ export default function FamilyMapScreen() {
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    filteredMembers.map((member, index) => {
+                    allMembers.map((member, index) => {
                       const location = memberLocations.get(member.user_id);
                       const presence = memberPresence.get(member.user_id);
                       const isOnline = presence?.status === 'online';

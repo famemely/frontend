@@ -1,7 +1,8 @@
 import { io, Socket } from "socket.io-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import { AUTH_CONFIG } from "../constants/auth.config";
+import { Platform } from "react-native";
+import { AUTH_CONFIG, resolveApiBaseUrl } from "../constants/auth.config";
 
 interface LocationUpdate {
   user_id: string;
@@ -78,10 +79,11 @@ class WebSocketService {
             return;
           }
 
-          const apiUrl =
+          const rawUrl =
             Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL ||
             process.env.EXPO_PUBLIC_API_BASE_URL ||
-            "http://localhost:3001";
+            AUTH_CONFIG.API.BASE_URL;
+          const apiUrl = resolveApiBaseUrl(rawUrl, Platform.OS);
           const wsUrl = apiUrl.replace(/^http/, "ws");
 
           console.log("[WebSocket] Connecting to:", wsUrl);
@@ -188,7 +190,15 @@ class WebSocketService {
     });
 
     this.socket.on("location_update", (data: LocationUpdate) => {
-      console.log("[WebSocket] 📍 Location update received:", data.user_id);
+      console.log("[WebSocket] � Location update received", {
+        user_id: data.user_id,
+        family_id: data.family_id,
+        lat: data.latitude,
+        lng: data.longitude,
+        acc: data.accuracy,
+        ts: data.timestamp,
+        battery: data.batteryLevel,
+      });
       this.emitToListeners("location_update", data);
     });
 
@@ -272,20 +282,45 @@ class WebSocketService {
     batteryState: string;
   }): Promise<void> {
     if (!this.socket?.connected) {
+      console.warn("[WebSocket] ⚠️ sendLocationUpdate while disconnected", {
+        family_id: location.family_id,
+        lat: location.latitude,
+        lng: location.longitude,
+        ts: location.timestamp,
+      });
       throw new Error("WebSocket not connected");
     }
 
     return new Promise((resolve, reject) => {
+      const startedAt = Date.now();
+      console.log("[WebSocket] 📤 Sending location_update", {
+        family_id: location.family_id,
+        lat: location.latitude,
+        lng: location.longitude,
+        acc: location.accuracy,
+        ts: location.timestamp,
+        battery: location.batteryLevel,
+        state: location.batteryState,
+      });
       this.socket!.emit("location_update", location, (response: any) => {
+        const took = Date.now() - startedAt;
         if (response?.success) {
+          console.log("[WebSocket] ✅ location_update ack", {
+            tookMs: took,
+            serverTs: response.timestamp,
+          });
           resolve();
         } else {
+          console.error("[WebSocket] ❌ location_update failed", response);
           reject(new Error("Location update failed"));
         }
       });
 
       // Timeout after 5 seconds
-      setTimeout(() => reject(new Error("Location update timeout")), 5000);
+      setTimeout(() => {
+        console.error("[WebSocket] ⏱️ location_update timeout (5s)");
+        reject(new Error("Location update timeout"));
+      }, 5000);
     });
   }
 

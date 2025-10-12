@@ -3,6 +3,7 @@ import * as TaskManager from "expo-task-manager";
 import * as Battery from "expo-battery";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import websocketService from "./websocket.service";
+import locationApiService from "./location-api.service";
 
 const LOCATION_TASK_NAME = "background-location-task";
 
@@ -53,27 +54,7 @@ class BackgroundLocationService {
       );
     }
 
-    // Define background task
-    this.defineBackgroundTask();
-
     console.log("[Location] ✅ Permissions granted and initialized");
-  }
-
-  private defineBackgroundTask(): void {
-    TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
-      if (error) {
-        console.error("[Background Location] Task error:", error);
-        return;
-      }
-
-      if (data) {
-        const { locations } = data;
-        if (locations && locations.length > 0) {
-          const location = locations[0];
-          await this.processLocationUpdate(location);
-        }
-      }
-    });
   }
 
   async startTracking(mode: TrackingMode, familyId: string): Promise<void> {
@@ -175,6 +156,7 @@ class BackgroundLocationService {
 
   async checkIn(familyId: string): Promise<LocationUpdate> {
     try {
+      console.log("[Location] ▶️ Check-in initiated", { familyId });
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
@@ -194,12 +176,53 @@ class BackgroundLocationService {
         batteryState: this.getBatteryStateString(batteryState),
       };
 
-      // Send via WebSocket if connected
+      // Send via WebSocket if connected, otherwise fallback to REST and queue
       if (websocketService.isConnected()) {
-        await websocketService.sendLocationUpdate({
-          family_id: familyId,
-          ...locationUpdate,
-        });
+        try {
+          await websocketService.sendLocationUpdate({
+            family_id: familyId,
+            ...locationUpdate,
+          });
+          console.log("[Location] ✅ Check-in sent via WS", {
+            family_id: familyId,
+            ts: locationUpdate.timestamp,
+          });
+        } catch (e) {
+          console.warn(
+            "[Location] WS send failed on check-in, falling back to REST",
+            e
+          );
+          try {
+            await locationApiService.updateLocation({
+              family_id: familyId,
+              ...locationUpdate,
+            } as any);
+            console.log("[Location] ✅ Check-in sent via REST fallback");
+          } catch (restErr) {
+            console.error(
+              "[Location] ❌ REST fallback failed, queueing",
+              restErr
+            );
+            await this.queueLocationUpdate(familyId, locationUpdate);
+          }
+        }
+      } else {
+        console.warn(
+          "[Location] WS not connected on check-in, attempting REST fallback"
+        );
+        try {
+          await locationApiService.updateLocation({
+            family_id: familyId,
+            ...locationUpdate,
+          } as any);
+          console.log("[Location] ✅ Check-in sent via REST (WS offline)");
+        } catch (restErr) {
+          console.error(
+            "[Location] ❌ REST fallback failed, queueing",
+            restErr
+          );
+          await this.queueLocationUpdate(familyId, locationUpdate);
+        }
       }
 
       return locationUpdate;
@@ -213,6 +236,7 @@ class BackgroundLocationService {
     location: Location.LocationObject
   ): Promise<void> {
     try {
+      console.log("[Background Location] Processing periodic update...");
       const familyId =
         this.currentFamilyId ||
         (await AsyncStorage.getItem("tracking_family_id"));
@@ -244,15 +268,47 @@ class BackgroundLocationService {
         locationUpdate.longitude += (Math.random() - 0.5) * blurRadius;
       }
 
-      // Send via WebSocket if connected
+      // Send via WebSocket if connected, else REST fallback, else queue
       if (websocketService.isConnected()) {
-        await websocketService.sendLocationUpdate({
-          family_id: familyId,
-          ...locationUpdate,
-        });
+        try {
+          await websocketService.sendLocationUpdate({
+            family_id: familyId,
+            ...locationUpdate,
+          });
+          console.log("[Background Location] ✅ Sent via WS", {
+            family_id: familyId,
+            ts: locationUpdate.timestamp,
+          });
+        } catch (e) {
+          console.warn(
+            "[Background Location] WS send failed, trying REST fallback",
+            e
+          );
+          try {
+            await locationApiService.updateLocation({
+              family_id: familyId,
+              ...locationUpdate,
+            } as any);
+            console.log("[Background Location] ✅ Sent via REST fallback");
+          } catch (restErr) {
+            console.error(
+              "[Background Location] ❌ REST fallback failed, queueing",
+              restErr
+            );
+            await this.queueLocationUpdate(familyId, locationUpdate);
+          }
+        }
       } else {
-        // Queue for later if offline
-        await this.queueLocationUpdate(familyId, locationUpdate);
+        try {
+          await locationApiService.updateLocation({
+            family_id: familyId,
+            ...locationUpdate,
+          } as any);
+          console.log("[Background Location] ✅ Sent via REST (WS offline)");
+        } catch (restErr) {
+          console.warn("[Background Location] REST failed, queueing", restErr);
+          await this.queueLocationUpdate(familyId, locationUpdate);
+        }
       }
 
       console.log("[Location] Update processed");
@@ -301,6 +357,8 @@ class BackgroundLocationService {
         try {
           if (websocketService.isConnected()) {
             await websocketService.sendLocationUpdate(update);
+          } else {
+            await locationApiService.updateLocation(update as any);
           }
         } catch (error) {
           console.error("[Location] Failed to send queued update:", error);
@@ -390,3 +448,19 @@ class BackgroundLocationService {
 export const backgroundLocationService =
   BackgroundLocationService.getInstance();
 export default backgroundLocationService;
+
+// Register background location task at module scope (once)
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
+  try {
+    if (error) {
+      console.error("[Background Location] Task error:", error);
+      return;
+    }
+    const locations = data?.locations;
+    if (locations && locations.length > 0) {
+      await backgroundLocationService["processLocationUpdate"](locations[0]);
+    }
+  } catch (e) {
+    console.error("[Background Location] Task handler failed:", e);
+  }
+});

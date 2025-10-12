@@ -77,6 +77,20 @@ export function useLocation(familyId: string | null): UseLocationReturn {
 
       // Process any queued location updates
       backgroundLocationService.processQueuedUpdates().catch(console.error);
+
+      // Immediately send a one-time check-in on connect if we have a family
+      if (familyId) {
+        console.log(
+          "[useLocation] Triggering immediate check-in after connect",
+          { familyId }
+        );
+        backgroundLocationService
+          .checkIn(familyId)
+          .then(() => console.log("[useLocation] Immediate check-in completed"))
+          .catch((e) =>
+            console.warn("[useLocation] Immediate check-in failed", e)
+          );
+      }
     };
 
     const handleDisconnect = () => {
@@ -165,6 +179,16 @@ export function useLocation(familyId: string | null): UseLocationReturn {
       // Join family room if familyId is set
       if (familyId) {
         await websocketService.joinFamily(familyId);
+      }
+
+      // Also trigger a one-time check-in once connected and joined
+      if (familyId) {
+        console.log("[useLocation] Post-join immediate check-in", { familyId });
+        backgroundLocationService
+          .checkIn(familyId)
+          .catch((e) =>
+            console.warn("[useLocation] Post-join check-in failed", e)
+          );
       }
 
       setError(null);
