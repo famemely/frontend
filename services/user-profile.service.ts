@@ -3,7 +3,7 @@
  * Ensures user profiles exist in public.users table
  */
 
-import { supabase } from "./auth.service";
+import { supabase } from "./supabase.client";
 
 class UserProfileService {
   /**
